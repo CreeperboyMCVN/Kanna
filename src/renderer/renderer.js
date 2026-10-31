@@ -34,6 +34,15 @@
   let toastTimer = null;
   let pinned = true;          // auto-scroll while the user is at the bottom
 
+  // Streaming smoothing: network chunks land in `pending` and get typed out
+  // a few characters per frame in `pace()`. The slice size scales with the
+  // backlog, so slow replies stay natural and fast bursts catch up quickly
+  // without text ever appearing all-at-once.
+  let received = '';          // full text as delivered by the network
+  let pending = '';           // text queued for display
+  let drainTimer = null;      // requestAnimationFrame handle of the pacing loop
+  let finishing = false;      // network done — drain the queue, then finalize
+
   // Warm the image cache so emote swaps never flicker.
   for (const emotion of EMOTES) {
     for (const speak of ['', '-speak']) {
@@ -144,6 +153,9 @@
 
     busy = true;
     text = '';
+    received = '';
+    pending = '';
+    finishing = false;
     sendBtn.innerHTML = STOP_ICON;
     sendBtn.classList.add('stop');
     sendBtn.title = 'Stop';
@@ -151,24 +163,25 @@
 
     try {
       const result = await window.kanna.sendChat(history.slice(-24));
-      if (text) history.push({ role: 'assistant', content: text });
-      else if (result.stopped) {
+      if (received) {
+        history.push({ role: 'assistant', content: received });
+        // Still typing out the backlog — finalize once the queue drains.
+        finishing = true;
+        if (!drainTimer) drainTimer = requestAnimationFrame(pace);
+      } else if (result.stopped) {
         bubble.classList.remove('typing');
         bubble.textContent = '…';
-      } else bubble.remove(); // no content and not stopped — drop the empty bubble
+        finalize();
+      } else {
+        bubble.remove(); // no content and not stopped — drop the empty bubble
+        finalize();
+      }
     } catch (err) {
+      pending = '';
       bubble.classList.remove('typing');
       bubble.textContent = `⚠ ${pickErrorMessage(err)}`;
       bubble.classList.add('error');
-    } finally {
-      busy = false;
-      sendBtn.innerHTML = SEND_ICON;
-      sendBtn.classList.remove('stop');
-      sendBtn.title = 'Send (Enter)';
-      bubble = null;
-      if (text) moodFlash(pickEmotion(text));
-      else setEmote('neutral', false);
-      scrollToBottom();
+      finalize();
     }
   }
 
@@ -178,15 +191,49 @@
 
   window.kanna.onChunk((chunk) => {
     if (!busy || !bubble) return;
-    if (bubble.classList.contains('typing')) {
-      bubble.classList.remove('typing');
-      bubble.textContent = '';
-      setEmote('neutral', true); // first real token — now she speaks
-    }
-    text += chunk;
-    bubble.textContent = text;
-    scrollToBottom();
+    received += chunk;
+    pending += chunk;
+    if (!drainTimer) drainTimer = requestAnimationFrame(pace);
   });
+
+  // Types the queued text out a few characters per animation frame. The
+  // backlog drives the speed (never instant, never far behind). Speaking
+  // starts when the first characters actually appear and ends once the
+  // queue is empty.
+  function pace() {
+    drainTimer = null;
+    if (!busy) return;
+    if (pending.length) {
+      const take = Math.max(1, Math.round(pending.length / 12));
+      const slice = pending.slice(0, take);
+      pending = pending.slice(take);
+
+      if (bubble.classList.contains('typing')) {
+        bubble.classList.remove('typing');
+        bubble.textContent = '';
+        setEmote('neutral', true); // now she speaks
+      }
+      text += slice;
+      bubble.textContent = text;
+      scrollToBottom();
+      drainTimer = requestAnimationFrame(pace);
+      return;
+    }
+    if (finishing) finalize();
+  }
+
+  function finalize() {
+    if (!busy) return;
+    busy = false;
+    drainTimer = null;
+    sendBtn.innerHTML = SEND_ICON;
+    sendBtn.classList.remove('stop');
+    sendBtn.title = 'Send (Enter)';
+    bubble = null;
+    if (text) moodFlash(pickEmotion(text));
+    else setEmote('neutral', false);
+    scrollToBottom();
+  }
 
   // --- small bits ----------------------------------------------------------
 
