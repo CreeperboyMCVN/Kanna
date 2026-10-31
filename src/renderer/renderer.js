@@ -189,6 +189,14 @@
     return (err?.message || 'Something went wrong. Try again.').replace(/^Error: /, '');
   }
 
+  // — Typing feel. Tune ONLY these two numbers: —
+  const TYPE_CPS = 45;        // characters per second at a comfortable pace
+  const CATCHUP_MAX = 600;    // cps cap when a huge backlog arrives (fast models)
+  // The effective speed is TYPE_CPS until the backlog grows, then it rises
+  // (one backlog char ≈ one cps) so the queue never lags more than ~1–2s.
+
+  let lastFrame = 0;          // timestamp of the previous paced frame
+
   window.kanna.onChunk((chunk) => {
     if (!busy || !bubble) return;
     received += chunk;
@@ -196,15 +204,16 @@
     if (!drainTimer) drainTimer = requestAnimationFrame(pace);
   });
 
-  // Types the queued text out a few characters per animation frame. The
-  // backlog drives the speed (never instant, never far behind). Speaking
-  // starts when the first characters actually appear and ends once the
-  // queue is empty.
-  function pace() {
+  function pace(ts) {
     drainTimer = null;
-    if (!busy) return;
+    if (!busy) { lastFrame = 0; return; }
+
     if (pending.length) {
-      const take = Math.max(1, Math.round(pending.length / 12));
+      const dt = lastFrame ? Math.min((ts - lastFrame) / 1000, 0.05) : 1 / 60;
+      lastFrame = ts;
+
+      const cps = Math.min(CATCHUP_MAX, Math.max(TYPE_CPS, pending.length));
+      const take = Math.max(1, Math.round(dt * cps));
       const slice = pending.slice(0, take);
       pending = pending.slice(take);
 
@@ -219,6 +228,8 @@
       drainTimer = requestAnimationFrame(pace);
       return;
     }
+
+    lastFrame = 0;
     if (finishing) finalize();
   }
 
