@@ -45,7 +45,8 @@ function createWindow() {
     minHeight: 560,
     title: 'Kanna',
     frame: false,
-    backgroundColor: '#fbf9ff',
+    transparent: true,
+    backgroundColor: '#00000000',
     autoHideMenuBar: true,
     icon: path.join(__dirname, '..', '..', 'assets', 'emotes', 'happy.png'),
     webPreferences: {
