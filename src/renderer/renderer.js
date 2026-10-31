@@ -49,9 +49,11 @@
     sprite.classList.toggle('speaking', !!speaking);
   }
 
+  // While the model is thinking there are no words yet — stay idle; the
+  // speaking variant kicks in only once real tokens start arriving.
   function setThinking() {
     clearTimeout(moodTimer);
-    setEmote('neutral', true);
+    setEmote('neutral', false);
   }
 
   function moodFlash(emotion) {
@@ -179,6 +181,7 @@
     if (bubble.classList.contains('typing')) {
       bubble.classList.remove('typing');
       bubble.textContent = '';
+      setEmote('neutral', true); // first real token — now she speaks
     }
     text += chunk;
     bubble.textContent = text;
