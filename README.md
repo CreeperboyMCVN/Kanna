@@ -20,6 +20,9 @@ your choice of AI provider.
   - Any OpenAI-compatible endpoint (OpenRouter, LM Studio, Ollama, …)
 - Per-provider keys/model are remembered separately, so switching providers
   keeps each one configured.
+- **Keys are encrypted at rest** — API keys in `settings.json` are sealed
+  with your OS account (safeStorage → DPAPI on Windows), decrypted only in
+  memory. Existing plaintext keys migrate automatically on first launch.
 - **Long-term memory** — after each turn, Kanna runs a quiet background
   request to the same provider asking "did anything durable just change?",
   and stores the answers as short facts in `memory.json` (never secrets).

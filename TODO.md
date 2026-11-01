@@ -15,9 +15,6 @@ Backlog of things not built yet. Pick from the top when starting something new.
 
 ## Next candidates
 
-- [ ] **Encrypt API keys with `safeStorage`** — they sit plaintext in
-  `%APPDATA%\Kanna\settings.json` (DPAPI on Windows). Migrate legacy
-  plaintext values on first load after upgrade.
 - [ ] **"Fetch models" button per provider** — hit `/models` (OpenAI +
   custom OpenAI-compatible), Anthropic and Gemini listing endpoints, so
   nobody has to type model IDs blind.
