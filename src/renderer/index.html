@@ -15,49 +15,62 @@
       <button id="btn-close" class="icon-btn" type="button" aria-label="Close settings">✕</button>
     </div>
     <form id="settings-form" autocomplete="off">
-      <label class="field">
-        <span>AI provider</span>
-        <select id="provider">
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic (Claude)</option>
-          <option value="gemini">Google (Gemini)</option>
-          <option value="custom">OpenAI-compatible (custom)</option>
-        </select>
-        <p class="hint" id="provider-hint"></p>
-      </label>
+      <nav class="tabs" role="tablist">
+        <button type="button" class="tab active" data-tab="brain" role="tab">🧠 Brain</button>
+        <button type="button" class="tab" data-tab="personality" role="tab">🎭 Personality</button>
+        <button type="button" class="tab" data-tab="memory" role="tab">🗂️ Memory</button>
+      </nav>
 
-      <label class="field" id="field-key">
-        <span>API key</span>
-        <span class="key-row">
-          <input id="apikey" type="password" spellcheck="false" placeholder="sk-…">
-          <button id="btn-eye" class="icon-btn" type="button" aria-label="Show or hide key">👁</button>
-        </span>
-      </label>
+      <div class="tab-panel active" data-panel="brain">
+        <label class="field">
+          <span>AI provider</span>
+          <select id="provider">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="gemini">Google (Gemini)</option>
+            <option value="custom">OpenAI-compatible (custom)</option>
+          </select>
+          <p class="hint" id="provider-hint"></p>
+        </label>
 
-      <label class="field" id="field-baseurl" hidden>
-        <span>Base URL</span>
-        <input id="baseurl" type="text" spellcheck="false" placeholder="https://api.example.com/v1">
-      </label>
+        <label class="field" id="field-key">
+          <span>API key</span>
+          <span class="key-row">
+            <input id="apikey" type="password" spellcheck="false" placeholder="sk-…">
+            <button id="btn-eye" class="icon-btn" type="button" aria-label="Show or hide key">👁</button>
+          </span>
+        </label>
 
-      <label class="field">
-        <span>Model</span>
-        <input id="model" type="text" spellcheck="false" placeholder="gpt-4o-mini">
-      </label>
+        <label class="field" id="field-baseurl" hidden>
+          <span>Base URL</span>
+          <input id="baseurl" type="text" spellcheck="false" placeholder="https://api.example.com/v1">
+        </label>
 
-      <label class="field">
-        <span>Persona (system prompt)</span>
-        <textarea id="persona" rows="4" spellcheck="false"></textarea>
-      </label>
+        <label class="field">
+          <span>Model</span>
+          <input id="model" type="text" spellcheck="false" placeholder="gpt-4o-mini">
+        </label>
 
-      <div class="field">
-        <span>Memory</span>
-        <div id="memory-list" class="memory-list"></div>
-        <button type="button" id="btn-forget" class="ghost-btn">Forget everything</button>
-        <p class="hint">Durable facts Kanna keeps on her own (never secrets like passwords or keys). Saved instantly — the Save button is only for provider settings.</p>
+        <p class="note">Keys are stored on this device in the app data folder.</p>
+      </div>
+
+      <div class="tab-panel" data-panel="personality">
+        <label class="field">
+          <span>Persona (system prompt)</span>
+          <textarea id="persona" rows="8" spellcheck="false"></textarea>
+          <p class="hint">Who Kanna is and how she talks — applied to every reply, saved with the Save button.</p>
+        </label>
+      </div>
+
+      <div class="tab-panel" data-panel="memory">
+        <div class="field">
+          <div id="memory-list" class="memory-list"></div>
+          <button type="button" id="btn-forget" class="ghost-btn">Forget everything</button>
+          <p class="hint">Durable facts Kanna keeps on her own (never secrets like passwords or keys). Saved instantly — the Save button is only for Brain/Personality settings.</p>
+        </div>
       </div>
 
       <button type="submit" class="primary">Save</button>
-      <p class="note">Keys are stored on this device in the app data folder.</p>
     </form>
   </aside>
 

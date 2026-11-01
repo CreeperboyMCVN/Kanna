@@ -50,6 +50,7 @@
       drawer.classList.add('open');
       scrim.classList.remove('hidden');
       els.key.focus();
+      showTab('brain');
       loadMemory();
     });
   }
@@ -61,6 +62,23 @@
 
   function isOpen() {
     return drawer.classList.contains('open');
+  }
+
+  // --- tabs: brain / personality / memory -------------------------------------
+
+  const tabs = drawer.querySelectorAll('.tab');
+  const panels = drawer.querySelectorAll('.tab-panel');
+
+  function showTab(name) {
+    for (const t of tabs) t.classList.toggle('active', t.dataset.tab === name);
+    for (const p of panels) p.classList.toggle('active', p.dataset.panel === name);
+  }
+
+  for (const t of tabs) {
+    t.addEventListener('click', () => {
+      showTab(t.dataset.tab);
+      if (t.dataset.tab === 'memory') loadMemory(); // fresh facts even while open
+    });
   }
 
   // --- memory panel (independent of the Save button) ---------------------------

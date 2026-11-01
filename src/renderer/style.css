@@ -593,6 +593,38 @@ header {
 
 .ghost-btn:hover { background: var(--danger-soft); }
 
+/* --- settings tabs (additive) ------------------------------------------------- */
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.tab {
+  flex: 1;
+  padding: 8px 4px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.tab:hover { background: var(--glass); color: var(--ink); }
+
+.tab.active {
+  background: var(--accent-soft);
+  border-color: rgba(255, 162, 92, 0.35);
+  color: var(--ink);
+}
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
 /* --- borderless window chrome -------------------------------------------------
    Appended so the header can drag the frameless window while buttons stay
    clickable. Visual styles of existing rules above are untouched. */
