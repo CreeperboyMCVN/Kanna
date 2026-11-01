@@ -333,6 +333,8 @@
     mainEl.replaceChildren(makeDots());
     scrollToBottom(true);
 
+    busy = true;
+
     received = '';
     pending = '';
     finishing = false;
