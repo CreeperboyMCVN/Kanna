@@ -491,7 +491,8 @@
     if (!busy) return;
     received += chunk;
     pending += chunk;
-    if (!drainTimer) drainTimer = requestAnimationFrame(pace);
+    // During thinking we just buffer; pacing starts once the reply is done.
+    if (phase !== 'thinking' && !drainTimer) drainTimer = requestAnimationFrame(pace);
   });
 
   // The model's directions for this reply. Mood is the first key of the JSON
