@@ -178,7 +178,7 @@ async function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   ipcMain.handle('settings:get', () => settings.getSettings());
 
   ipcMain.handle('settings:save', (_e, patch) => settings.save(patch));
