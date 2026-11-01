@@ -18,6 +18,11 @@ your choice of AI provider.
   - Anthropic (Claude)
   - Google (Gemini)
   - Any OpenAI-compatible endpoint (OpenRouter, LM Studio, Ollama, …)
+  - OpenCode (the opencode.ai gateway — GLM, Kimi, Qwen, Claude, GPT and
+    friends, with some free models; pay-as-you-go key from the console)
+- **Fetch models ↻** — the Brain tab can pull the live model list for the
+  selected provider into a type-ahead list, so model IDs no longer have to
+  be typed from memory.
 - Per-provider keys/model are remembered separately, so switching providers
   keeps each one configured.
 - **Keys are encrypted at rest** — API keys in `settings.json` are sealed
