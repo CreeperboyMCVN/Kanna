@@ -15,11 +15,6 @@ Backlog of things not built yet. Pick from the top when starting something new.
 
 ## Next candidates
 
-- [ ] **"Fetch models" button per provider** — hit `/models` (OpenAI +
-  custom OpenAI-compatible), Anthropic and Gemini listing endpoints, so
-  nobody has to type model IDs blind.
-- [ ] **Tray icon + summon hotkey** — global accelerator (e.g. Ctrl+Shift+K)
-  to show/focus the chat, close-to-tray instead of quitting.
 - [ ] **Remember window position** — dragging works but position resets
   every launch; persist x/y and restore (with on-screen sanity clamping).
 - [ ] **Pet window, done right** — separate always-on-top sprite window,
