@@ -68,6 +68,10 @@
   let liveHold = null;       // model said whether this mood should stick
   let holdFace = false;      // true while a held mood is on her face
 
+  // TTS (built-in speechSynthesis for now; provider selectable in settings).
+  let tts = { provider: 'builtin', voice: '', rate: 1, pitch: 1, muted: false };
+  let shouldSpeak = false;   // set per turn; finalize() speaks only if true
+
   // Warm the image cache so emote swaps never flicker.
   for (const emotion of EMOTES) {
     for (const speak of ['', '-speak']) {
@@ -185,7 +189,39 @@
     return frag;
   }
 
-  // --- configuration state --------------------------------------------------
+  // --- TTS (built-in speechSynthesis) ---------------------------------------
+
+  function cancelSpeech() {
+    try { if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel(); } catch { /* ignore */ }
+  }
+
+  function updateMuteButton() {
+    const btn = document.getElementById('btn-mute');
+    if (!btn) return;
+    const muted = !!tts?.muted;
+    btn.textContent = muted ? '🔇' : '🔊';
+    btn.title = muted ? 'Unmute TTS' : 'Mute TTS';
+    btn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+  }
+
+  function speakText(text) {
+    if (!text || tts?.muted) return;
+    if (!tts || tts.provider !== 'builtin') return; // other providers: TODO
+    if (typeof speechSynthesis === 'undefined') return;
+    cancelSpeech();
+    const u = new SpeechSynthesisUtterance(text);
+    const voices = speechSynthesis.getVoices();
+    const chosen = voices.find((v) => v.name === tts.voice);
+    if (chosen) u.voice = chosen;
+    const rate = Number(tts.rate);
+    const pitch = Number(tts.pitch);
+    u.rate = Number.isFinite(rate) ? Math.min(2, Math.max(0.5, rate)) : 1;
+    u.pitch = Number.isFinite(pitch) ? Math.min(2, Math.max(0.5, pitch)) : 1;
+    // mood-based pitch nudge
+    const moodPitch = { happy: 1.1, sad: 0.85, angry: 0.95, surprise: 1.05, shy: 0.9, strained: 0.9 };
+    if (moodPitch[liveMood]) u.pitch = Math.min(2, Math.max(0.5, u.pitch * moodPitch[liveMood]));
+    try { speechSynthesis.speak(u); } catch { /* ignore */ }
+  }
 
   function isConfigured(s) {
     if (!s) return false;
@@ -201,6 +237,9 @@
     statusEl.title = ok
       ? `Ready — provider: ${settings.provider}`
       : 'Not configured — add an API key in Settings';
+
+    tts = (settings && settings.tts) ? settings.tts : tts;
+    updateMuteButton();
 
     updateWelcome(mainEl); // guarded inside: only lands while the box is fresh
   }
@@ -260,7 +299,7 @@
   // a hit strip: clicking it opens the composer — or interrupts her while
   // she's replying.
   tapEl.addEventListener('click', () => {
-    if (busy) { window.kanna.stopChat(); return; }
+    if (busy) { cancelSpeech(); window.kanna.stopChat(); return; }
     if (composerOpen) return;
     openCompose();
     inputEl.focus();
@@ -316,6 +355,9 @@
     inputEl.value = '';
     autoGrow();
 
+    cancelSpeech();
+    shouldSpeak = false;
+
     // Sending always closes the composer — the box becomes the stage for her
     // reply, your words shrink to the small top line.
     composerOpen = false;
@@ -350,6 +392,7 @@
       const result = await window.kanna.sendChat(history.slice(-24));
       if (received) {
         history.push({ role: 'assistant', content: received });
+        shouldSpeak = true;
         // Still typing out the backlog — finalize once the queue drains.
         finishing = true;
         if (!drainTimer) drainTimer = requestAnimationFrame(pace);
@@ -451,6 +494,10 @@
     else if (text) moodFlash(liveMood !== 'neutral' ? liveMood : pickEmotion(text), liveHold);
     else setEmote('neutral', false);
     scrollToBottom();
+    if (shouldSpeak && text && !tts?.muted && tts?.provider === 'builtin') {
+      speakText(text);
+    }
+    shouldSpeak = false;
   }
 
   // --- small bits ----------------------------------------------------------
@@ -482,6 +529,24 @@
   // Borderless window buttons.
   $('#win-min').addEventListener('click', () => window.kanna.minimize());
   $('#win-close').addEventListener('click', () => window.kanna.close());
+
+  // Mute TTS toggle (header) — persists via settings.
+  const muteBtn = document.getElementById('btn-mute');
+  if (muteBtn) {
+    muteBtn.addEventListener('click', async () => {
+      const next = !(tts?.muted);
+      tts = { ...tts, muted: next };
+      updateMuteButton();
+      try {
+        const saved = await window.kanna.saveSettings({ tts: { ...tts, muted: next } });
+        if (saved?.tts) tts = saved.tts;
+        settings = await window.kanna.getSettings();
+        updateMuteButton();
+        window.dispatchEvent(new CustomEvent('kanna:settings-changed'));
+      } catch { /* ignore */ }
+      if (next) cancelSpeech();
+    });
+  }
 
   // --- history tab ---------------------------------------------------------------
 

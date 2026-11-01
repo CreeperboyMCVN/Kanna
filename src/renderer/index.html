@@ -19,6 +19,7 @@
         <button type="button" class="tab active" data-tab="brain" role="tab">🧠 Brain</button>
         <button type="button" class="tab" data-tab="personality" role="tab">🎭 Personality</button>
         <button type="button" class="tab" data-tab="memory" role="tab">🗂️ Memory</button>
+        <button type="button" class="tab" data-tab="voice" role="tab">🔊 Voice</button>
       </nav>
 
       <div class="tab-panel active" data-panel="brain">
@@ -75,6 +76,69 @@
         </div>
       </div>
 
+      <div class="tab-panel" data-panel="voice">
+        <label class="field">
+          <span>TTS provider</span>
+          <select id="tts-provider">
+            <option value="builtin">Built-in (speechSynthesis)</option>
+            <option value="piper">Piper (local, offline)</option>
+            <option value="elevenlabs">ElevenLabs</option>
+            <option value="openai">OpenAI TTS</option>
+            <option value="azure">Azure Speech</option>
+            <option value="google">Google Cloud TTS</option>
+          </select>
+          <p class="hint" id="tts-provider-hint"></p>
+        </label>
+
+        <label class="field" id="field-tts-voice">
+          <span>Voice</span>
+          <select id="tts-voice"></select>
+        </label>
+
+        <label class="field" id="field-tts-openai-key" hidden>
+          <span>OpenAI API key</span>
+          <input id="tts-openai-key" type="password" spellcheck="false" placeholder="sk-…">
+        </label>
+
+        <label class="field" id="field-tts-elevenlabs-key" hidden>
+          <span>ElevenLabs API key</span>
+          <input id="tts-elevenlabs-key" type="password" spellcheck="false" placeholder="xi-…">
+        </label>
+
+        <label class="field" id="field-tts-azure-key" hidden>
+          <span>Azure key</span>
+          <input id="tts-azure-key" type="password" spellcheck="false" placeholder="key…">
+        </label>
+
+        <label class="field" id="field-tts-azure-region" hidden>
+          <span>Azure region</span>
+          <input id="tts-azure-region" type="text" spellcheck="false" placeholder="eastus">
+        </label>
+
+        <label class="field" id="field-tts-google-key" hidden>
+          <span>Google API key</span>
+          <input id="tts-google-key" type="password" spellcheck="false" placeholder="AI…">
+        </label>
+
+        <label class="field">
+          <span>Rate</span>
+          <input id="tts-rate" type="range" min="0.5" max="2" step="0.1" value="1">
+          <span class="hint" id="tts-rate-val">1.0</span>
+        </label>
+
+        <label class="field">
+          <span>Pitch</span>
+          <input id="tts-pitch" type="range" min="0.5" max="2" step="0.1" value="1">
+          <span class="hint" id="tts-pitch-val">1.0</span>
+        </label>
+
+        <label class="field">
+          <span><input id="tts-muted" type="checkbox"> Mute TTS</span>
+        </label>
+
+        <p class="hint">Built-in uses your OS voices (speechSynthesis). Other providers are coming soon — keys are saved for when they ship.</p>
+      </div>
+
       <button type="submit" class="primary">Save</button>
     </form>
   </aside>
@@ -92,6 +156,7 @@
       <span class="brand"><span class="brand-fox">🦊</span><span class="brand-name">Kanna</span></span>
       <span class="spacer"></span>
       <span id="status" class="status" title="Checking configuration…"></span>
+      <button id="btn-mute" class="icon-btn" type="button" aria-label="Mute TTS" title="Mute TTS">🔊</button>
       <button id="btn-history" class="icon-btn" type="button" aria-label="History" title="History">🕘</button>
       <button id="btn-settings" class="icon-btn" type="button" aria-label="Settings" title="Settings">⚙</button>
       <div class="win-controls" role="group" aria-label="Window controls">

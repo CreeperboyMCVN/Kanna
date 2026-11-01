@@ -26,10 +26,27 @@ const DEFAULT_SETTINGS = {
   custom: { apiKey: '', model: '', baseUrl: 'https://api.openai.com/v1' },
   opencode: { apiKey: '', model: 'glm-5.3-flash-free' },
   window: { x: null, y: null },
+  tts: {
+    provider: 'builtin', // 'builtin' | 'piper' | 'elevenlabs' | 'openai' | 'azure' | 'google'
+    voice: '',           // builtin voice name (or cloud voice id)
+    rate: 1,             // 0.5 - 2
+    pitch: 1,            // 0.5 - 2
+    muted: false,
+    // Cloud provider credentials (encrypted at rest like API keys).
+    openaiKey: '',
+    elevenlabsKey: '',
+    azureKey: '',
+    azureRegion: '',
+    googleKey: '',
+  },
 };
 
 // Where API keys live in the settings shape.
 const KEY_FIELDS = ['openai', 'anthropic', 'gemini', 'custom', 'opencode'];
+
+// TTS provider credentials live nested under settings.tts (not top-level
+// provider groups), so they're handled separately but encrypted the same way.
+const TTS_KEY_FIELDS = ['openaiKey', 'elevenlabsKey', 'azureKey', 'googleKey'];
 
 const MARKER = 'enc:v1:';
 let cache = null;
@@ -97,6 +114,18 @@ async function getSettings() {
         plainOnDisk = true;
       }
     }
+    // TTS provider credentials (nested under cache.tts).
+    if (cache.tts && typeof cache.tts === 'object') {
+      for (const field of TTS_KEY_FIELDS) {
+        const v = cache.tts[field];
+        if (typeof v !== 'string' || !v) continue;
+        if (isEncrypted(v)) {
+          cache.tts[field] = await decrypt(v);
+        } else {
+          plainOnDisk = true;
+        }
+      }
+    }
     if (plainOnDisk) {
       const n = await persist();
       if (n) console.log('[settings]', `encrypted ${n} API key(s) with your OS credentials`);
@@ -125,6 +154,18 @@ async function persist() {
       if (blob) {
         disk[group].apiKey = blob;
         encrypted++;
+      }
+    }
+  }
+  if (disk.tts && typeof disk.tts === 'object') {
+    for (const field of TTS_KEY_FIELDS) {
+      const v = disk.tts[field];
+      if (typeof v === 'string' && v && !isEncrypted(v)) {
+        const blob = await encrypt(v);
+        if (blob) {
+          disk.tts[field] = blob;
+          encrypted++;
+        }
       }
     }
   }

@@ -16,6 +16,18 @@
     baseUrl: $('#baseurl'),
     model: $('#model'),
     persona: $('#persona'),
+    ttsProvider: $('#tts-provider'),
+    ttsVoice: $('#tts-voice'),
+    ttsRate: $('#tts-rate'),
+    ttsRateVal: $('#tts-rate-val'),
+    ttsPitch: $('#tts-pitch'),
+    ttsPitchVal: $('#tts-pitch-val'),
+    ttsMuted: $('#tts-muted'),
+    ttsOpenaiKey: $('#tts-openai-key'),
+    ttsElevenlabsKey: $('#tts-elevenlabs-key'),
+    ttsAzureKey: $('#tts-azure-key'),
+    ttsAzureRegion: $('#tts-azure-region'),
+    ttsGoogleKey: $('#tts-google-key'),
   };
 
   const PROVIDER_META = {
@@ -98,7 +110,51 @@
     }
   });
 
-  // --- tabs: brain / personality / memory -------------------------------------
+  // --- TTS voice list (built-in uses speechSynthesis) --------------------------
+
+  function populateVoices(selected) {
+    const sel = els.ttsVoice;
+    sel.replaceChildren();
+    if (typeof speechSynthesis === 'undefined') {
+      const o = document.createElement('option');
+      o.value = '';
+      o.textContent = '(speechSynthesis unavailable)';
+      sel.append(o);
+      return;
+    }
+    const voices = speechSynthesis.getVoices();
+    if (!voices.length) {
+      const o = document.createElement('option');
+      o.value = '';
+      o.textContent = '(loading voices…)';
+      sel.append(o);
+      return;
+    }
+    // Prefer English voices first, then the rest.
+    const sorted = [...voices].sort((a, b) => {
+      const ae = /^en/i.test(a.lang) ? 0 : 1;
+      const be = /^en/i.test(b.lang) ? 0 : 1;
+      if (ae !== be) return ae - be;
+      return a.name.localeCompare(b.name);
+    });
+    for (const v of sorted) {
+      const o = document.createElement('option');
+      o.value = v.name;
+      o.textContent = `${v.name} (${v.lang})`;
+      if (v.name === selected) o.selected = true;
+      sel.append(o);
+    }
+    if (!selected && sorted.length) sel.value = sorted[0].name;
+  }
+
+  if (typeof speechSynthesis !== 'undefined') {
+    speechSynthesis.onvoiceschanged = () => {
+      if (drawer.classList.contains('open')) {
+        const t = draft?.tts;
+        populateVoices(t?.voice || els.ttsVoice.value || '');
+      }
+    };
+  }
 
   const tabs = drawer.querySelectorAll('.tab');
   const panels = drawer.querySelectorAll('.tab-panel');
@@ -187,6 +243,39 @@
     els.persona.value = draft.persona || '';
     els.key.type = 'password';
     els.eye.textContent = '👁';
+
+    // --- TTS ---
+    const t = draft.tts || (draft.tts = { provider:'builtin', voice:'', rate:1, pitch:1, muted:false, openaiKey:'', elevenlabsKey:'', azureKey:'', azureRegion:'', googleKey:'' });
+    els.ttsProvider.value = t.provider || 'builtin';
+    els.ttsRate.value = t.rate ?? 1;
+    els.ttsRateVal.textContent = Number(t.rate ?? 1).toFixed(1);
+    els.ttsPitch.value = t.pitch ?? 1;
+    els.ttsPitchVal.textContent = Number(t.pitch ?? 1).toFixed(1);
+    els.ttsMuted.checked = !!t.muted;
+    els.ttsOpenaiKey.value = t.openaiKey || '';
+    els.ttsElevenlabsKey.value = t.elevenlabsKey || '';
+    els.ttsAzureKey.value = t.azureKey || '';
+    els.ttsAzureRegion.value = t.azureRegion || '';
+    els.ttsGoogleKey.value = t.googleKey || '';
+
+    const ttsHints = {
+      builtin: 'Uses your OS voices (speechSynthesis). Offline, no setup.',
+      piper: 'Coming soon — local high-quality offline voice (downloads a model).',
+      elevenlabs: 'Coming soon — needs an ElevenLabs API key.',
+      openai: 'Coming soon — reuses your OpenAI key.',
+      azure: 'Coming soon — needs an Azure Speech key + region.',
+      google: 'Coming soon — needs a Google Cloud TTS key.',
+    };
+    const hintEl = document.getElementById('tts-provider-hint');
+    if (hintEl) hintEl.textContent = ttsHints[els.ttsProvider.value] || '';
+    document.getElementById('field-tts-openai-key').hidden = p !== 'openai';
+    document.getElementById('field-tts-elevenlabs-key').hidden = p !== 'elevenlabs';
+    document.getElementById('field-tts-azure-key').hidden = p !== 'azure';
+    document.getElementById('field-tts-azure-region').hidden = p !== 'azure';
+    document.getElementById('field-tts-google-key').hidden = p !== 'google';
+
+    // voice list
+    populateVoices(t.voice || '');
   }
 
   async function save(e) {
@@ -206,6 +295,18 @@
       gemini: { apiKey: draft.gemini.apiKey, model: draft.gemini.model },
       custom: { apiKey: draft.custom.apiKey, model: draft.custom.model, baseUrl: draft.custom.baseUrl },
       opencode: { apiKey: draft.opencode.apiKey, model: draft.opencode.model },
+      tts: {
+        provider: draft.tts?.provider || 'builtin',
+        voice: draft.tts?.voice || '',
+        rate: draft.tts?.rate ?? 1,
+        pitch: draft.tts?.pitch ?? 1,
+        muted: !!draft.tts?.muted,
+        openaiKey: draft.tts?.openaiKey || '',
+        elevenlabsKey: draft.tts?.elevenlabsKey || '',
+        azureKey: draft.tts?.azureKey || '',
+        azureRegion: draft.tts?.azureRegion || '',
+        googleKey: draft.tts?.googleKey || '',
+      },
     });
 
     draft = structuredClone(saved);
@@ -236,6 +337,64 @@
   els.baseUrl.addEventListener('input', () => {
     draft.custom.baseUrl = els.baseUrl.value;
   });
+
+  // --- TTS inputs -------------------------------------------------------------
+  els.ttsProvider.addEventListener('change', () => {
+    if (!draft.tts) draft.tts = {};
+    draft.tts.provider = els.ttsProvider.value;
+    document.getElementById('field-tts-openai-key').hidden = els.ttsProvider.value !== 'openai';
+    document.getElementById('field-tts-elevenlabs-key').hidden = els.ttsProvider.value !== 'elevenlabs';
+    document.getElementById('field-tts-azure-key').hidden = els.ttsProvider.value !== 'azure';
+    document.getElementById('field-tts-azure-region').hidden = els.ttsProvider.value !== 'azure';
+    document.getElementById('field-tts-google-key').hidden = els.ttsProvider.value !== 'google';
+    const ttsHints = {
+      builtin: 'Uses your OS voices (speechSynthesis). Offline, no setup.',
+      piper: 'Coming soon — local high-quality offline voice (downloads a model).',
+      elevenlabs: 'Coming soon — needs an ElevenLabs API key.',
+      openai: 'Coming soon — reuses your OpenAI key.',
+      azure: 'Coming soon — needs an Azure Speech key + region.',
+      google: 'Coming soon — needs a Google Cloud TTS key.',
+    };
+    const he = document.getElementById('tts-provider-hint');
+    if (he) he.textContent = ttsHints[els.ttsProvider.value] || '';
+    populateVoices(draft.tts.voice || '');
+  });
+
+  els.ttsVoice.addEventListener('change', () => {
+    if (!draft.tts) draft.tts = {};
+    draft.tts.voice = els.ttsVoice.value;
+  });
+
+  els.ttsRate.addEventListener('input', () => {
+    if (!draft.tts) draft.tts = {};
+    draft.tts.rate = Number(els.ttsRate.value);
+    els.ttsRateVal.textContent = Number(els.ttsRate.value).toFixed(1);
+  });
+
+  els.ttsPitch.addEventListener('input', () => {
+    if (!draft.tts) draft.tts = {};
+    draft.tts.pitch = Number(els.ttsPitch.value);
+    els.ttsPitchVal.textContent = Number(els.ttsPitch.value).toFixed(1);
+  });
+
+  els.ttsMuted.addEventListener('change', () => {
+    if (!draft.tts) draft.tts = {};
+    draft.tts.muted = els.ttsMuted.checked;
+  });
+
+  const ttsKeyMap = [
+    [els.ttsOpenaiKey, 'openaiKey'],
+    [els.ttsElevenlabsKey, 'elevenlabsKey'],
+    [els.ttsAzureKey, 'azureKey'],
+    [els.ttsAzureRegion, 'azureRegion'],
+    [els.ttsGoogleKey, 'googleKey'],
+  ];
+  for (const [el, field] of ttsKeyMap) {
+    el.addEventListener('input', () => {
+      if (!draft.tts) draft.tts = {};
+      draft.tts[field] = el.value;
+    });
+  }
 
   els.persona.addEventListener('input', () => {
     draft.persona = els.persona.value;
