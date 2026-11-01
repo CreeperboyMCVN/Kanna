@@ -60,6 +60,8 @@
   // for models that ignore the JSON reply protocol.
   let liveMood = 'neutral';
   let liveSpeed = 1;
+  let liveHold = null;       // model said whether this mood should stick
+  let holdFace = false;      // true while a held mood is on her face
 
   // Warm the image cache so emote swaps never flicker.
   for (const emotion of EMOTES) {
@@ -80,12 +82,16 @@
   // speaking variant kicks in only once real tokens start arriving.
   function setThinking() {
     clearTimeout(moodTimer);
-    setEmote('neutral', false);
+    // A held mood carries into the next turn — she's still on that emotion
+    // while thinking, until the new reply says otherwise.
+    if (!holdFace) setEmote('neutral', false);
   }
 
-  function moodFlash(emotion) {
+  function moodFlash(emotion, hold) {
+    holdFace = !!hold;
     setEmote(emotion, false);
     clearTimeout(moodTimer);
+    if (hold) return; // stays until the next turn moves her
     moodTimer = setTimeout(() => setEmote('neutral', false), 6000);
   }
 
@@ -204,6 +210,7 @@
     finishing = false;
     liveMood = 'neutral';
     liveSpeed = 1;
+    liveHold = null;
     sendBtn.innerHTML = STOP_ICON;
     sendBtn.classList.add('stop');
     sendBtn.title = 'Stop';
@@ -239,7 +246,7 @@
 
   // — Typing feel. Tune ONLY these two numbers: —
   const TYPE_CPS = 5;        // characters per second at a comfortable pace
-  const CATCHUP_MAX = 100;    // cps cap when a huge backlog arrives (fast models)
+  const CATCHUP_MAX = 20;    // cps cap when a huge backlog arrives (fast models)
   // The effective speed is TYPE_CPS until the backlog grows, then it rises
   // (one backlog char ≈ one cps) so the queue never lags more than ~1–2s.
 
@@ -266,6 +273,7 @@
       const v = Number(meta.speed);
       if (Number.isFinite(v) && v > 0) liveSpeed = Math.min(2.2, Math.max(0.6, v));
     }
+    if (meta.hold !== undefined) liveHold = !!meta.hold;
   });
 
   function pace(ts) {
@@ -307,7 +315,7 @@
     sendBtn.classList.remove('stop');
     sendBtn.title = 'Send (Enter)';
     bubble = null;
-    if (text) moodFlash(liveMood !== 'neutral' ? liveMood : pickEmotion(text));
+    if (text) moodFlash(liveMood !== 'neutral' ? liveMood : pickEmotion(text), liveHold);
     else setEmote('neutral', false);
     scrollToBottom();
   }

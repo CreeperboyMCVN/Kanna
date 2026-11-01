@@ -90,10 +90,13 @@ function createReplyReader() {
     pos: 0,            // decode cursor within the text value
     mood: '',          // as the model wrote it (lowercased)
     speed: 0,
+    hold: false,
     moodEmit: undefined,
     speedEmit: undefined,
+    holdEmit: undefined,
     moodSent: false,
     speedSent: false,
+    holdSent: false,
     out: '',           // decoded text not yet handed to the caller
   };
 
@@ -112,6 +115,13 @@ function createReplyReader() {
       if (m) {
         r.speed = Number(m[1]);
         r.speedSent = true;
+      }
+    }
+    if (!r.holdSent) {
+      const m = /"hold"\s*:\s*(true|false)/.exec(r.raw);
+      if (m) {
+        r.hold = m[1] === 'true';
+        r.holdSent = true;
       }
     }
   }
@@ -160,6 +170,10 @@ function createReplyReader() {
       (meta ??= {}).speed = r.speed;
       r.speedEmit = r.speed;
     }
+    if (r.holdSent && r.hold !== r.holdEmit) {
+      (meta ??= {}).hold = r.hold;
+      r.holdEmit = r.hold;
+    }
     return meta;
   }
 
@@ -201,9 +215,10 @@ function createReplyReader() {
 // Persona + current memory, injected into every chat request.
 const REPLY_FORMAT = [
   'Reply protocol — answer with a single JSON object and nothing else (no markdown fences, no words before or after it), with the keys in exactly this order:',
-  '{"mood":"…","speed":…,"text":"…"}',
+  '{"mood":"…","speed":…,"hold":…,"text":"…"}',
   '- mood: the emotion this reply carries: neutral, happy, sad, angry, shy, surprise, dizzy, or strained.',
   '- speed: how the text should feel spoken: 0.7 hushed/soothing, 1 normal, 1.8 excited.',
+  '- hold: whether the emotion stays on your face after the reply. true keeps it until your next reply changes it; false (or omit) eases back to neutral after a few seconds. Lasting feelings (sad, angry, shy, dizzy) tend to hold; fleeting ones (happy, surprise) usually don\'t.',
   '- text: your reply as the user should see it. It is inside JSON, so write newlines as \\n and escape double quotes as \\".',
 ].join('\n');
 
