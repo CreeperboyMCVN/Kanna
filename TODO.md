@@ -19,11 +19,14 @@ Backlog of things not built yet. Pick from the top when starting something new.
   512×512 icon was generated from the happy emote (`assets/icon.png`,
   converted to .ico by electron-builder); the packaged app launches from
   `dist/win-unpacked/Kanna.exe` and the installer is `dist/Kanna Setup 0.1.0.exe`.
-- [ ] **TTS — she speaks her replies aloud** — voice selection: built-in
-  Chromium `speechSynthesis` (offline OS voices, zero deps) vs a cloud/engine
-  voice; tie rate & pitch to the reply's `speed`/mood fields; mute toggle in
-  the header; keep her from talking over the typewriter (speak after each
-  visible sentence, or after finalize).
+- [ ] **TTS — she speaks her replies aloud** — built-in speechSynthesis is
+  implemented (provider selector, voice list, rate/pitch sliders, mute toggle
+  in header, speaks on finalize). Remaining backends: Piper (local, offline),
+  ElevenLabs, OpenAI TTS, Azure Speech, Google Cloud TTS (keys saved, UI
+  shows "coming soon"). Voice selection: built-in Chromium `speechSynthesis`
+  (offline OS voices, zero deps) vs a cloud/engine voice; tie rate & pitch to
+  the reply's `speed`/mood fields; keep her from talking over the typewriter
+  (speak after finalize).
 - [ ] **STT — push-to-talk** — a mic button (or hotkey hold) recording to a
   file, transcribed via a local engine (whisper.cpp / Vosk) or the provider's
   audio API, then injected into the input as if typed. Pick one engine; config
