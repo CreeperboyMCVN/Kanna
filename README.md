@@ -28,6 +28,10 @@ your choice of AI provider.
 - **Keys are encrypted at rest** — API keys in `settings.json` are sealed
   with your OS account (safeStorage → DPAPI on Windows), decrypted only in
   memory. Existing plaintext keys migrate automatically on first launch.
+- **Tray + summon hotkey** — she lives in the notification area
+  (assets/icon.ico): clicking the tray raises her, Ctrl+Shift+K works from
+  anywhere. The ✕ button hides her to the tray — **Quit only via the tray
+  menu**, so chats and streaming survive accidental closes.
 - **Long-term memory** — after each turn, Kanna runs a quiet background
   request to the same provider asking "did anything durable just change?",
   and stores the answers as short facts in `memory.json` (never secrets).
