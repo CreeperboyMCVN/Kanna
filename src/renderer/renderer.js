@@ -250,9 +250,9 @@
     let chunk = '';
     if (m) {
       chunk = m[0];
-    } else if (rest.length > 25) {
+    } else if (rest.length > 20) {
       const sp = rest.lastIndexOf(' ');
-      chunk = sp > 12 ? rest.slice(0, sp + 1) : '';
+      chunk = sp > 10 ? rest.slice(0, sp + 1) : '';
     }
     if (!chunk) return;
     spokenIndex += chunk.length;
