@@ -47,10 +47,9 @@ function setupMenu() {
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 430,
-    height: 780,
-    minWidth: 340,
-    minHeight: 560,
+    width: 340,
+    height: 560,
+    resizable: false,
     title: 'Kanna',
     frame: false,
     transparent: true,
@@ -119,11 +118,6 @@ app.whenReady().then(() => {
 
   // Borderless window controls.
   ipcMain.on('win:min', () => win?.minimize());
-  ipcMain.on('win:toggleMax', () => {
-    if (!win) return;
-    if (win.isMaximized()) win.unmaximize();
-    else win.maximize();
-  });
   ipcMain.on('win:close', () => win?.close());
 
   setupMenu();

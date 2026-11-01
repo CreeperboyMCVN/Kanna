@@ -274,7 +274,6 @@
 
   // Borderless window buttons.
   $('#win-min').addEventListener('click', () => window.kanna.minimize());
-  $('#win-max').addEventListener('click', () => window.kanna.toggleMaximize());
   $('#win-close').addEventListener('click', () => window.kanna.close());
 
   window.addEventListener('kanna:settings-changed', refreshSettings);

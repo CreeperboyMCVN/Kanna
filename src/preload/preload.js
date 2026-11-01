@@ -14,6 +14,5 @@ contextBridge.exposeInMainWorld('kanna', {
     ipcRenderer.on('chat:chunk', (_e, text) => listener(text));
   },
   minimize: () => ipcRenderer.send('win:min'),
-  toggleMaximize: () => ipcRenderer.send('win:toggleMax'),
   close: () => ipcRenderer.send('win:close'),
 });
