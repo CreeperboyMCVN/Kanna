@@ -13,7 +13,7 @@ function abortActive() {
 // hard errors (bad key, bad model, network) — the renderer shows the message.
 async function runChat(messages, emit, system, opts = {}) {
   const { registerInActive = true, plain = false } = opts;
-  const settings = getSettings();
+  const settings = await getSettings();
   const controller = new AbortController();
   if (registerInActive) active = { controller };
 
@@ -267,7 +267,7 @@ async function streamOpenAI(settings, messages, push, signal, systemPrompt) {
     // No max_tokens/temperature here: newer OpenAI models and many
     // OpenAI-compatible servers reject the legacy parameters.
     messages: [{ role: 'system', content: systemPrompt }, ...normalize(messages)],
-  }, signal, label);
+  }, signal, meta.label);
 
   const ct = res.headers.get('content-type') || '';
   if (!ct.includes('text/event-stream')) {
@@ -311,7 +311,7 @@ async function getJson(url, headers, label) {
 // Returns { models: [id] } for the given provider, reusing the provider's
 // stored key/models so the listing matches what chat will actually use.
 async function listModels(provider) {
-  const settings = getSettings();
+  const settings = await getSettings();
   const name = String(provider || settings.provider);
 
   if (name === 'anthropic') {

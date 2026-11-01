@@ -42,10 +42,15 @@ function isEncrypted(v) {
   return typeof v === 'string' && v.startsWith(MARKER);
 }
 
-// Returns the encrypted form, or null when the OS can't do it — the caller
-// then keeps plaintext (current behavior) and we mention it once.
-function encrypt(plain) {
+// Electron 45 deprecates the sync safeStorage calls; prefer the async ones
+// when the runtime has them, fall back to the old ones so older Electron
+// versions keep working. Returns the encrypted form, or null when the OS
+// can't do it — the caller keeps plaintext and we mention it once.
+async function encrypt(plain) {
   try {
+    if (safeStorage.isAsyncEncryptionAvailable?.()) {
+      return MARKER + (await safeStorage.encryptStringAsync(plain)).toString('base64');
+    }
     if (!safeStorage.isEncryptionAvailable()) return null;
     return MARKER + safeStorage.encryptString(plain).toString('base64');
   } catch (err) {
@@ -57,9 +62,11 @@ function encrypt(plain) {
   }
 }
 
-function decrypt(blob) {
+async function decrypt(blob) {
+  const raw = Buffer.from(blob.slice(MARKER.length), 'base64');
   try {
-    return safeStorage.decryptString(Buffer.from(blob.slice(MARKER.length), 'base64'));
+    if (safeStorage.decryptStringAsync) return await safeStorage.decryptStringAsync(raw);
+    return safeStorage.decryptString(raw);
   } catch {
     // Encrypted by another OS account / unrecoverable — treat as unset.
     console.log('[settings]', 'an API key could not be decrypted — re-enter it in Settings.');
@@ -67,7 +74,7 @@ function decrypt(blob) {
   }
 }
 
-function getSettings() {
+async function getSettings() {
   if (!cache) {
     let raw = {};
     try {
@@ -84,36 +91,36 @@ function getSettings() {
       const v = cache[group]?.apiKey;
       if (typeof v !== 'string' || !v) continue;
       if (isEncrypted(v)) {
-        cache[group].apiKey = decrypt(v);
+        cache[group].apiKey = await decrypt(v);
       } else {
         plainOnDisk = true;
       }
     }
     if (plainOnDisk) {
-      const n = persist();
+      const n = await persist();
       if (n) console.log('[settings]', `encrypted ${n} API key(s) with your OS credentials`);
     }
   }
   return cache;
 }
 
-function save(patch) {
-  const next = merge(getSettings(), patch || {});
+async function save(patch) {
+  const next = merge(await getSettings(), patch || {});
   next.provider = PROVIDERS.includes(next.provider) ? next.provider : 'openai';
   cache = next;
-  persist();
+  await persist();
   return next;
 }
 
 // Writes the current (plaintext) cache to disk with every API key encrypted
 // when the OS supports it.
-function persist() {
+async function persist() {
   const disk = structuredClone(cache);
   let encrypted = 0;
   for (const group of KEY_FIELDS) {
     const v = disk[group]?.apiKey;
     if (typeof v === 'string' && v && !isEncrypted(v)) {
-      const blob = encrypt(v);
+      const blob = await encrypt(v);
       if (blob) {
         disk[group].apiKey = blob;
         encrypted++;
