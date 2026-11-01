@@ -15,10 +15,6 @@ Backlog of things not built yet. Pick from the top when starting something new.
 
 ## Next candidates
 
-- [ ] **Pet window, done right** — separate always-on-top sprite window,
-  own remembered screen position, mood broadcast from main so both windows
-  stay in sync. (An earlier two-window split was tried and undone — redo
-  only if wanted.)
 - [ ] **Installer sanity check** — `npm run dist` has never been run; the
   Windows target needs a real `.ico` (can generate from the happy emote),
   then verify the packaged app runs from `dist/`.
@@ -45,5 +41,7 @@ Backlog of things not built yet. Pick from the top when starting something new.
 
 - Full chat history persistence — memory is durable **facts** only, by
   design; history is in-memory and cleared on close.
+- Pet / separate sprite window — tried, undone, then decided against in
+  favor of the compact chatbox (two latest turns + History tab).
 - Maximize/resize handling — the window is fixed 340×560 (`resizable: false`,
   maximize button removed) on purpose.
