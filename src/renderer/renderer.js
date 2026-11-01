@@ -71,6 +71,7 @@
   // TTS (built-in speechSynthesis for now; provider selectable in settings).
   let tts = { provider: 'builtin', voice: '', rate: 1, pitch: 1, muted: false };
   let shouldSpeak = false;   // set per turn; finalize() speaks only if true
+  let spokenIndex = 0;       // how much of `text` has already been queued for speech
 
   // Warm the image cache so emote swaps never flicker.
   for (const emotion of EMOTES) {
@@ -204,11 +205,10 @@
     btn.setAttribute('aria-pressed', muted ? 'true' : 'false');
   }
 
-  function speakText(text) {
+  function speakChunk(text) {
     if (!text || tts?.muted) return;
     if (!tts || tts.provider !== 'builtin') return; // other providers: TODO
     if (typeof speechSynthesis === 'undefined') return;
-    cancelSpeech();
     const u = new SpeechSynthesisUtterance(text);
     const voices = speechSynthesis.getVoices();
     const chosen = voices.find((v) => v.name === tts.voice);
@@ -218,6 +218,43 @@
     u.rate = Number.isFinite(rate) ? Math.min(2, Math.max(0.5, rate)) : 1;
     u.pitch = Number.isFinite(pitch) ? Math.min(2, Math.max(0.5, pitch)) : 1;
     // mood-based pitch nudge
+    const moodPitch = { happy: 1.1, sad: 0.85, angry: 0.95, surprise: 1.05, shy: 0.9, strained: 0.9 };
+    if (moodPitch[liveMood]) u.pitch = Math.min(2, Math.max(0.5, u.pitch * moodPitch[liveMood]));
+    try { speechSynthesis.speak(u); } catch { /* ignore */ }
+  }
+
+  function textForSpeech(md) {
+    let s = String(md || '').replace(/```[\s\S]*?```/g, ' code block. ');
+    s = s.replace(/\*\*([^*]+)\*\*/g, '$1');
+    s = s.replace(/\*([^*]+)\*/g, '$1');
+    s = s.replace(/`([^`]+)`/g, '$1');
+    return s.trim();
+  }
+
+  function maybeSpeak() {
+    if (!shouldSpeak || tts?.muted || tts?.provider !== 'builtin') return;
+    if (typeof speechSynthesis === 'undefined') return;
+    const full = textForSpeech(text);
+    if (full.length <= spokenIndex) return;
+    const rest = full.slice(spokenIndex);
+    const m = rest.match(/[\s\S]*[.!?](?:\s|$)/);
+    let chunk = '';
+    if (m) {
+      chunk = m[0];
+    } else if (rest.length > 90) {
+      const sp = rest.lastIndexOf(' ');
+      chunk = sp > 40 ? rest.slice(0, sp + 1) : '';
+    }
+    if (!chunk) return;
+    spokenIndex += chunk.length;
+    const u = new SpeechSynthesisUtterance(chunk.trim());
+    const voices = speechSynthesis.getVoices();
+    const chosen = voices.find((v) => v.name === tts.voice);
+    if (chosen) u.voice = chosen;
+    const rate = Number(tts.rate);
+    const pitch = Number(tts.pitch);
+    u.rate = Number.isFinite(rate) ? Math.min(2, Math.max(0.5, rate)) : 1;
+    u.pitch = Number.isFinite(pitch) ? Math.min(2, Math.max(0.5, pitch)) : 1;
     const moodPitch = { happy: 1.1, sad: 0.85, angry: 0.95, surprise: 1.05, shy: 0.9, strained: 0.9 };
     if (moodPitch[liveMood]) u.pitch = Math.min(2, Math.max(0.5, u.pitch * moodPitch[liveMood]));
     try { speechSynthesis.speak(u); } catch { /* ignore */ }
@@ -299,7 +336,7 @@
   // a hit strip: clicking it opens the composer — or interrupts her while
   // she's replying.
   tapEl.addEventListener('click', () => {
-    if (busy) { cancelSpeech(); window.kanna.stopChat(); return; }
+    if (busy) { cancelSpeech(); shouldSpeak = false; window.kanna.stopChat(); return; }
     if (composerOpen) return;
     openCompose();
     inputEl.focus();
@@ -357,6 +394,7 @@
 
     cancelSpeech();
     shouldSpeak = false;
+    spokenIndex = 0;
 
     // Sending always closes the composer — the box becomes the stage for her
     // reply, your words shrink to the small top line.
@@ -475,6 +513,7 @@
       text += slice;
       renderMarkdownInto(mainEl, text);
       scrollToBottom();
+      maybeSpeak();
       drainTimer = requestAnimationFrame(pace);
       return;
     }
@@ -495,7 +534,13 @@
     else setEmote('neutral', false);
     scrollToBottom();
     if (shouldSpeak && text && !tts?.muted && tts?.provider === 'builtin') {
-      speakText(text);
+      maybeSpeak();
+      const full = textForSpeech(text);
+      const rest = full.slice(spokenIndex).trim();
+      if (rest) {
+        spokenIndex = full.length;
+        speakChunk(rest);
+      }
     }
     shouldSpeak = false;
   }
