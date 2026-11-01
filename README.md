@@ -20,6 +20,11 @@ your choice of AI provider.
   - Any OpenAI-compatible endpoint (OpenRouter, LM Studio, Ollama, …)
 - Per-provider keys/model are remembered separately, so switching providers
   keeps each one configured.
+- **Long-term memory** — after each turn, Kanna runs a quiet background
+  request to the same provider asking "did anything durable just change?",
+  and stores the answers as short facts in `memory.json` (never secrets).
+  The facts ride along with every new conversation's system prompt, and you
+  can inspect/clear them in ⚙ Settings → Memory.
 
 ## Quick start
 

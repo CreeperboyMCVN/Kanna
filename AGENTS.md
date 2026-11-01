@@ -11,6 +11,7 @@ Scaffolded (verified Nov 2026):
 - Source layout:
   - `src/main/main.js` — window + IPC wiring (`settings:get/save`, `chat:send`, `chat:stop`).
   - `src/main/settings.js` — settings store; persists to `%APPDATA%\Kanna\settings.json` (plaintext API keys: openai/anthropic/gemini/custom blocks + `provider`, `persona`).
+  - `src/main/memory.js` — long-term memory: `%APPDATA%\Kanna\memory.json` facts store; after each successful turn `scheduleRemember()` asks the same provider for a JSON add/remove diff (`registerInActive: false` so it can't be aborted by the chat stop button); facts are injected into the chat system prompt via `ai.js → composeChatSystem()`. Extraction is fire-and-forget; parse failures are ignored.
   - `src/main/ai.js` — provider adapters with SSE streaming (OpenAI + any OpenAI-compatible base URL (`custom`), Anthropic, Gemini).
   - `src/preload/preload.js` — contextBridge API as `window.kanna`.
   - `src/renderer/` — `index.html`, `style.css`, `renderer.js` (chat + emote/mood logic), `settings.js` (settings drawer).
