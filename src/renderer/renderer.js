@@ -99,10 +99,38 @@
     if (welcome && welcome.isConnected) updateWelcome(welcome);
   }
 
-  function updateWelcome(el) {
-    el.textContent = isConfigured(settings)
-      ? 'Konkonn! I\'m Kanna 🦊 Ask me anything — or open ⚙ Settings to change how I think.'
-      : 'Hi! I\'m Kanna 🦊 Add an API key in ⚙ Settings and I\'m yours.';
+  // First message flavor: fresh install → intro/setup nudge; memory → personal
+  // welcome back (by name when she knows it); plain config → generic welcome.
+  // The token guard keeps overlapping refreshes from stomping each other.
+  let welcomeToken = 0;
+  async function updateWelcome(el) {
+    const token = ++welcomeToken;
+
+    if (!isConfigured(settings)) {
+      el.textContent = 'Hi! I\'m Kanna 🦊 — a fox who lives on your desktop. Open ⚙ → Brain, add an API key, and I\'m yours.';
+      return;
+    }
+
+    let entries = [];
+    try {
+      const data = await window.kanna.getMemory();
+      entries = Array.isArray(data) ? data : Array.isArray(data?.entries) ? data.entries : [];
+    } catch {
+      // memory read failed — fall through to the generic welcome
+    }
+
+    if (token !== welcomeToken) return; // a newer refresh already took over
+
+    const named = entries.find((e) => e.key === 'user.name' || e.key.endsWith('.name'));
+    if (named?.value) {
+      el.textContent = `Konkonn, ${named.value} — the desk's been quiet without you 🦊`;
+      return;
+    }
+    if (entries.length) {
+      el.textContent = `Welcome back! My little notebook holds ${entries.length} thing${entries.length === 1 ? '' : 's'} about you 🦊`;
+      return;
+    }
+    el.textContent = 'Welcome back 🦊 What are we getting into today?';
   }
 
   // --- chat ----------------------------------------------------------------
