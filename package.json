@@ -3,6 +3,7 @@
   "productName": "Kanna",
   "version": "0.1.0",
   "description": "Kanna — a tiny desktop AI companion.",
+  "author": "Kanna",
   "private": true,
   "main": "src/main/main.js",
   "scripts": {
