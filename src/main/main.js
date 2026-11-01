@@ -93,6 +93,7 @@ app.whenReady().then(() => {
   ipcMain.handle('settings:get', () => settings.getSettings());
 
   ipcMain.handle('settings:save', (_e, patch) => settings.save(patch));
+  ipcMain.handle('models:list', (_e, provider) => ai.listModels(provider));
 
   ipcMain.handle('memory:get', () => ({ entries: memory.load() }));
   ipcMain.handle('memory:remove', (_e, key) => ({ entries: memory.removeEntry(String(key || '')) }));

@@ -239,19 +239,27 @@ function isAbort(err) {
 
 // --- provider adapters -----------------------------------------------------
 
+// Providers that speak the OpenAI chat-completions dialect. 'custom' keeps
+// a user-set Base URL; openai/opencode use fixed gateway URLs.
+const OPENAI_COMPAT = {
+  openai: { label: 'OpenAI', defaultBase: 'https://api.openai.com/v1' },
+  custom: { label: 'Custom provider', defaultBase: '' },
+  opencode: { label: 'OpenCode', defaultBase: 'https://opencode.ai/inference/openai/v1' },
+};
+
 async function streamOpenAI(settings, messages, push, signal, systemPrompt) {
-  const custom = settings.provider === 'custom';
-  const conf = custom ? settings.custom : settings.openai;
-  const label = custom ? 'Custom provider' : 'OpenAI';
+  const meta = OPENAI_COMPAT[settings.provider] || OPENAI_COMPAT.openai;
+  const conf = settings[settings.provider] || settings.openai;
 
-  if (!conf.model) throw new Error(`${label} needs a model name — set one in Settings.`);
-  if (!custom && !conf.apiKey) throw new Error(`${label} needs an API key — add one in Settings.`);
+  if (!conf.model) throw new Error(`${meta.label} needs a model name — set one in Settings.`);
+  if (settings.provider !== 'custom' && !conf.apiKey) throw new Error(`${meta.label} needs an API key — add one in Settings.`);
 
-  const baseUrl = (custom ? conf.baseUrl : 'https://api.openai.com/v1').replace(/\/+$/, '');
+  const baseUrl = (settings.provider === 'custom' ? conf.baseUrl : meta.defaultBase || '')
+    .replace(/\/+$/, '');
   if (!baseUrl) throw new Error('Custom provider needs a base URL — set one in Settings.');
 
   const headers = {};
-  if (!custom || conf.apiKey) headers.authorization = `Bearer ${conf.apiKey}`;
+  if (conf.apiKey) headers.authorization = `Bearer ${conf.apiKey}`;
 
   const res = await post(`${baseUrl}/chat/completions`, headers, {
     stream: true,
@@ -277,6 +285,79 @@ async function streamOpenAI(settings, messages, push, signal, systemPrompt) {
     const t = j.choices?.[0]?.delta?.content;
     if (t) push(t);
   });
+}
+
+// --- model listing (the "↻ fetch models" button) -----------------------------
+
+// GET variant of post(): same error translation, no request body.
+async function getJson(url, headers, label) {
+  let res;
+  try {
+    res = await fetch(url, { headers });
+  } catch (err) {
+    throw new Error(friendlyNetworkError(err, url));
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(humanHttpError(label, res.status, text));
+  }
+  try {
+    return await res.json();
+  } catch {
+    throw new Error(`${label} answered with data that is not JSON.`);
+  }
+}
+
+// Returns { models: [id] } for the given provider, reusing the provider's
+// stored key/models so the listing matches what chat will actually use.
+async function listModels(provider) {
+  const settings = getSettings();
+  const name = String(provider || settings.provider);
+
+  if (name === 'anthropic') {
+    if (!settings.anthropic.apiKey) throw new Error('Anthropic needs an API key — add one in Settings.');
+    const j = await getJson('https://api.anthropic.com/v1/models', {
+      'x-api-key': settings.anthropic.apiKey,
+      'anthropic-version': '2023-06-01',
+    }, 'Anthropic');
+    return { models: (j.data || []).map((m) => m.id).filter(Boolean) };
+  }
+
+  if (name === 'gemini') {
+    if (!settings.gemini.apiKey) throw new Error('Gemini needs an API key — add one in Settings.');
+    const j = await getJson('https://generativelanguage.googleapis.com/v1beta/models', {
+      'x-goog-api-key': settings.gemini.apiKey,
+    }, 'Gemini');
+    // Gemini names come as "models/gemini-…"; keep chat-capable ones only.
+    return {
+      models: (j.models || [])
+        .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
+        .map((m) => String(m.name || '').replace(/^models\//, ''))
+        .filter(Boolean),
+    };
+  }
+
+  if (name === 'custom') {
+    const baseUrl = (settings.custom.baseUrl || '').replace(/\/+$/, '');
+    if (!baseUrl) throw new Error('Custom provider needs a base URL — set one in Settings.');
+    const headers = {};
+    if (settings.custom.apiKey) headers.authorization = `Bearer ${settings.custom.apiKey}`;
+    const j = await getJson(`${baseUrl}/models`, headers, 'Custom provider');
+    return { models: (j.data || []).map((m) => m.id).filter(Boolean) };
+  }
+
+  if (name === 'opencode') {
+    const headers = {};
+    if (settings.opencode.apiKey) headers.authorization = `Bearer ${settings.opencode.apiKey}`;
+    const j = await getJson('https://opencode.ai/inference/v1/models', headers, 'OpenCode');
+    return { models: (j.data || []).map((m) => m.id).filter(Boolean) };
+  }
+
+  if (!settings.openai.apiKey) throw new Error('OpenAI needs an API key — add one in Settings.');
+  const j = await getJson('https://api.openai.com/v1/models', {
+    authorization: `Bearer ${settings.openai.apiKey}`,
+  }, 'OpenAI');
+  return { models: (j.data || []).map((m) => m.id).filter(Boolean) };
 }
 
 async function streamAnthropic(settings, messages, push, signal, systemPrompt) {
@@ -427,4 +508,4 @@ function normalize(messages) {
   return out;
 }
 
-module.exports = { runChat, abortActive };
+module.exports = { runChat, listModels, abortActive };

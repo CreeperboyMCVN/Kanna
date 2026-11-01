@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('kanna', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (patch) => ipcRenderer.invoke('settings:save', patch),
+  listModels: (provider) => ipcRenderer.invoke('models:list', provider),
   getMemory: () => ipcRenderer.invoke('memory:get'),
   removeMemory: (key) => ipcRenderer.invoke('memory:remove', key),
   clearMemory: () => ipcRenderer.invoke('memory:clear'),

@@ -29,6 +29,7 @@
             <option value="anthropic">Anthropic (Claude)</option>
             <option value="gemini">Google (Gemini)</option>
             <option value="custom">OpenAI-compatible (custom)</option>
+            <option value="opencode">OpenCode (gateway)</option>
           </select>
           <p class="hint" id="provider-hint"></p>
         </label>
@@ -48,7 +49,11 @@
 
         <label class="field">
           <span>Model</span>
-          <input id="model" type="text" spellcheck="false" placeholder="gpt-4o-mini">
+          <span class="key-row">
+            <input id="model" type="text" spellcheck="false" placeholder="gpt-4o-mini" list="model-list">
+            <button id="btn-models" class="icon-btn" type="button" title="Fetch available models">↻</button>
+          </span>
+          <datalist id="model-list"></datalist>
         </label>
 
         <p class="note">Keys are encrypted with your OS account and stored in the app data folder.</p>

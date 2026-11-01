@@ -15,7 +15,7 @@ const DEFAULT_PERSONA =
   'Keep replies short, casual and friendly — a couple of light sentences for chat. ' +
   'It is fine to tease gently, and you love small talk, anime, and snacks.';
 
-const PROVIDERS = ['openai', 'anthropic', 'gemini', 'custom'];
+const PROVIDERS = ['openai', 'anthropic', 'gemini', 'custom', 'opencode'];
 
 const DEFAULT_SETTINGS = {
   provider: 'openai',
@@ -24,10 +24,11 @@ const DEFAULT_SETTINGS = {
   anthropic: { apiKey: '', model: 'claude-sonnet-4-5' },
   gemini: { apiKey: '', model: 'gemini-2.5-flash' },
   custom: { apiKey: '', model: '', baseUrl: 'https://api.openai.com/v1' },
+  opencode: { apiKey: '', model: 'glm-5.3-flash-free' },
 };
 
 // Where API keys live in the settings shape.
-const KEY_FIELDS = ['openai', 'anthropic', 'gemini', 'custom'];
+const KEY_FIELDS = ['openai', 'anthropic', 'gemini', 'custom', 'opencode'];
 
 const MARKER = 'enc:v1:';
 let cache = null;

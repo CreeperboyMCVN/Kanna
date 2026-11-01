@@ -39,6 +39,11 @@
       keyPlaceholder: 'optional',
       modelPlaceholder: 'model name, e.g. llama3.2:3b',
     },
+    opencode: {
+      hint: 'Pay-as-you-go gateway at opencode.ai/console (key from there). Hosts GLM, Kimi, Qwen, Claude, GPT and more — with some free models.',
+      keyPlaceholder: 'oc key…',
+      modelPlaceholder: 'e.g. glm-5.3-flash-free',
+    },
   };
 
   let draft = null;
@@ -63,6 +68,35 @@
   function isOpen() {
     return drawer.classList.contains('open');
   }
+
+  // --- "↻ fetch models": fill the datalist from the provider's listing ----
+
+  document.getElementById('btn-models').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-models');
+    const list = document.getElementById('model-list');
+    const old = btn.textContent;
+
+    btn.disabled = true;
+    btn.textContent = '…';
+    try {
+      const { models } = await window.kanna.listModels(draft.provider);
+      const ids = [...new Set(models)].sort((a, b) => a.localeCompare(b));
+      list.replaceChildren(...ids.map((id) => {
+        const option = document.createElement('option');
+        option.value = id;
+        return option;
+      }));
+      window.dispatchEvent(new CustomEvent('kanna:toast', {
+        detail: `${ids.length} models — start typing or pick from the list`,
+      }));
+    } catch (err) {
+      const msg = (err?.message || 'Could not list models.').replace(/^Error: /, '');
+      window.dispatchEvent(new CustomEvent('kanna:toast', { detail: msg }));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = old;
+    }
+  });
 
   // --- tabs: brain / personality / memory -------------------------------------
 
@@ -171,6 +205,7 @@
       anthropic: { apiKey: draft.anthropic.apiKey, model: draft.anthropic.model },
       gemini: { apiKey: draft.gemini.apiKey, model: draft.gemini.model },
       custom: { apiKey: draft.custom.apiKey, model: draft.custom.model, baseUrl: draft.custom.baseUrl },
+      opencode: { apiKey: draft.opencode.apiKey, model: draft.opencode.model },
     });
 
     draft = structuredClone(saved);
