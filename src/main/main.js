@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, globalShortcut } = require('electron');
 const path = require('node:path');
 
 const settings = require('./settings');
@@ -15,12 +15,52 @@ function lastUserText(messages) {
 const memory = require('./memory');
 
 let win = null;
+let tray = null;
+let isQuitting = false;
 
 function toggleDevTools() {
   if (!win) return;
   const wc = win.webContents;
   if (wc.isDevToolsOpened()) wc.closeDevTools();
   else wc.openDevTools({ mode: 'detach' });
+}
+
+function kannaIconPath() {
+  return path.join(__dirname, '..', '..', 'assets', 'icon.ico');
+}
+
+// Bring her up however she was last left (hidden to tray, minimized…).
+function showWindow() {
+  if (!win) {
+    createWindow();
+    return;
+  }
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+// Tray: a presence in the corner, the summon target, and the only Quit that
+// means it — closing the window hides her here instead of exiting.
+function setupTray() {
+  try {
+    tray = new Tray(kannaIconPath());
+  } catch (err) {
+    console.log('[tray]', 'could not load the tray icon:', err?.message || err);
+    return;
+  }
+  tray.setToolTip('Kanna');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Open Kanna', click: showWindow },
+    { label: 'Quit', click: () => { isQuitting = true; app.quit(); } },
+  ]));
+  tray.on('click', showWindow);
+}
+
+// Global summon hotkey: Ctrl+Shift+K (Cmd+Shift+K on macOS builds).
+function setupSummonHotkey() {
+  const ok = globalShortcut.register('CommandOrControl+Shift+K', showWindow);
+  if (!ok) console.log('[hotkey]', 'Ctrl+Shift+K is taken by another app — no summon shortcut');
 }
 
 // Dev menus are handy for hacking on the UI live; the menubar stays hidden
@@ -55,7 +95,7 @@ function createWindow() {
     transparent: true,
     backgroundColor: '#00000000',
     autoHideMenuBar: true,
-    icon: path.join(__dirname, '..', '..', 'assets', 'emotes', 'happy.png'),
+    icon: kannaIconPath(),
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'preload.js'),
       contextIsolation: true,
@@ -82,6 +122,15 @@ function createWindow() {
   if (!app.isPackaged) win.webContents.session.clearCache();
 
   win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+
+  // The ✕ button hides her to the tray instead of exiting — she keeps
+  // living there until the tray menu's Quit (or the summon hotkey).
+  win.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      win.hide();
+    }
+  });
 
   win.on('closed', () => {
     ai.abortActive();
@@ -123,13 +172,22 @@ app.whenReady().then(() => {
 
   setupMenu();
   createWindow();
+  setupTray();
+  setupSummonHotkey();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
-app.on('before-quit', () => ai.abortActive());
+app.on('before-quit', () => {
+  isQuitting = true;
+  ai.abortActive();
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
