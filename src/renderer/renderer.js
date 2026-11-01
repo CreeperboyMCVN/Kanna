@@ -44,6 +44,9 @@
   let settings = null;
   let history = [];           // { role: 'user' | 'assistant', content }
   let busy = false;
+  let phase = 'idle';         // 'idle' | 'thinking' | 'speaking'
+  let speechPhaseActive = false; // typing is paced to a full-reply TTS duration
+  let targetCps = 5;         // chars/sec used while speaking
   let text = '';              // accumulated reply text / her latest reply
   let lastUserMsg = '';       // your latest message (feeds the small top line)
   let composerOpen = true;    // composer row visible at the bottom of the box
@@ -71,8 +74,6 @@
   // TTS (built-in speechSynthesis for now; provider selectable in settings).
   let tts = { provider: 'builtin', voice: '', rate: 1, pitch: 1, muted: false };
   let shouldSpeak = false;   // set per turn; finalize() speaks only if true
-  let spokenIndex = 0;       // how much of `text` has already been queued for speech
-  let speechBusy = false;    // true while an utterance is being spoken (gates typing)
 
   // Warm the image cache so emote swaps never flicker.
   for (const emotion of EMOTES) {
@@ -194,7 +195,6 @@
   // --- TTS (built-in speechSynthesis) ---------------------------------------
 
   function cancelSpeech() {
-    speechBusy = false;
     try { if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel(); } catch { /* ignore */ }
   }
 
@@ -222,13 +222,7 @@
     // mood-based pitch nudge
     const moodPitch = { happy: 1.1, sad: 0.85, angry: 0.95, surprise: 1.05, shy: 0.9, strained: 0.9 };
     if (moodPitch[liveMood]) u.pitch = Math.min(2, Math.max(0.5, u.pitch * moodPitch[liveMood]));
-    speechBusy = true;
-    u.onend = () => { speechBusy = false; };
-    u.onerror = () => { speechBusy = false; };
-    // Safety: if onend never fires, release the gate after an estimate.
-    const estMs = Math.max(500, (text.length / Math.max(0.5, u.rate)) * 110);
-    setTimeout(() => { if (speechBusy) speechBusy = false; }, estMs);
-    try { speechSynthesis.speak(u); } catch { speechBusy = false; }
+    try { speechSynthesis.speak(u); } catch { /* ignore */ }
   }
 
   function textForSpeech(md) {
@@ -237,26 +231,6 @@
     s = s.replace(/\*([^*]+)\*/g, '$1');
     s = s.replace(/`([^`]+)`/g, '$1');
     return s.trim();
-  }
-
-  function maybeSpeak() {
-    if (!shouldSpeak || tts?.muted || tts?.provider !== 'builtin') return;
-    if (speechBusy) return;
-    if (typeof speechSynthesis === 'undefined') return;
-    const full = textForSpeech(text);
-    if (full.length <= spokenIndex) return;
-    const rest = full.slice(spokenIndex);
-    const m = rest.match(/[\s\S]*[.!?](?:\s|$)/);
-    let chunk = '';
-    if (m) {
-      chunk = m[0];
-    } else if (rest.length > 20) {
-      const sp = rest.lastIndexOf(' ');
-      chunk = sp > 10 ? rest.slice(0, sp + 1) : '';
-    }
-    if (!chunk) return;
-    spokenIndex += chunk.length;
-    speakChunk(chunk.trim());
   }
 
   function isConfigured(s) {
@@ -335,7 +309,31 @@
   // a hit strip: clicking it opens the composer — or interrupts her while
   // she's replying.
   tapEl.addEventListener('click', () => {
-    if (busy) { cancelSpeech(); shouldSpeak = false; window.kanna.stopChat(); return; }
+    cancelSpeech();
+    if (busy) {
+      if (phase === 'thinking') {
+        shouldSpeak = false;
+        window.kanna.stopChat();
+        return;
+      }
+      // speech phase: stop speech and end the reply with "…"
+      shouldSpeak = false;
+      speechPhaseActive = false;
+      if (text.trim()) {
+        text = text.trimEnd();
+        if (!text.endsWith('…') && !text.endsWith('...')) text += '…';
+      } else {
+        text = '…';
+      }
+      renderMarkdownInto(mainEl, text);
+      if (history.length && history[history.length - 1]?.role === 'assistant') {
+        history[history.length - 1].content = text;
+      }
+      finishing = false;
+      phase = 'idle';
+      finalize();
+      return;
+    }
     if (composerOpen) return;
     openCompose();
     inputEl.focus();
@@ -344,6 +342,7 @@
   // Composing view: her last reply pushes into the small top line (what
   // you're answering to) and your last message takes the big spot back.
   function openCompose() {
+    cancelSpeech();
     if (text.trim()) {
       renderMarkdownInto(priorEl, text);
       renderMarkdownInto(mainEl, lastUserMsg);
@@ -393,7 +392,9 @@
 
     cancelSpeech();
     shouldSpeak = false;
-    spokenIndex = 0;
+    phase = 'thinking';
+    speechPhaseActive = false;
+    targetCps = 5;
 
     // Sending always closes the composer — the box becomes the stage for her
     // reply, your words shrink to the small top line.
@@ -429,21 +430,42 @@
       const result = await window.kanna.sendChat(history.slice(-24));
       if (received) {
         history.push({ role: 'assistant', content: received });
-        shouldSpeak = true;
-        // Still typing out the backlog — finalize once the queue drains.
+        // Reply fully received. Now generate the full TTS and pace the
+        // typewriter to the speech duration so text and voice finish together.
+        shouldSpeak = !tts?.muted && tts?.provider === 'builtin';
+        if (shouldSpeak && typeof speechSynthesis !== 'undefined') {
+          speakChunk(textForSpeech(received));
+        }
+        // Estimate how long the speech will take and type the whole reply
+        // over that window.
+        if (shouldSpeak) {
+          const rate = Number(tts.rate) || 1;
+          const estCps = Math.max(2, 10 * rate);
+          const speechText = textForSpeech(received);
+          const durMs = Math.max(1200, (speechText.length / estCps) * 1000);
+          targetCps = received.length / (durMs / 1000);
+          speechPhaseActive = true;
+        } else {
+          speechPhaseActive = false;
+          targetCps = TYPE_CPS;
+        }
+        phase = 'speaking';
         finishing = true;
         if (!drainTimer) drainTimer = requestAnimationFrame(pace);
       } else if (result.stopped) {
+        phase = 'idle';
         mainEl.classList.remove('typing');
         mainEl.textContent = '…';
         finalize();
       } else {
+        phase = 'idle';
         mainEl.classList.remove('typing');
         mainEl.replaceChildren(); // no content and not stopped — leave it empty
         finalize();
       }
     } catch (err) {
       pending = '';
+      phase = 'idle';
       mainEl.classList.remove('typing');
       mainEl.textContent = `⚠ ${pickErrorMessage(err)}`;
       mainEl.classList.add('error');
@@ -493,29 +515,18 @@
     drainTimer = null;
     if (!busy) { lastFrame = 0; return; }
 
+    if (phase === 'thinking') {
+      lastFrame = 0;
+      return;
+    }
+
     if (pending.length) {
       const dt = lastFrame ? Math.min((ts - lastFrame) / 1000, 0.05) : 1 / 60;
       lastFrame = ts;
 
-      // The model's `speed` direction scales the base typing pace — her own
-      // tune knob (TYPE_CPS / CATCHUP_MAX) stays in charge of the feel.
-      const ttsActive = shouldSpeak && !tts?.muted && tts?.provider === 'builtin';
-      if (ttsActive && speechBusy) {
-        // Speech is still playing — hold the typewriter so text doesn't run
-        // ahead of the voice. Keep the loop alive; resume once speech ends.
-        lastFrame = ts;
-        drainTimer = requestAnimationFrame(pace);
-        return;
-      }
       let cps;
-      if (ttsActive) {
-        // Pace the text to the speech rate so the typewriter doesn't outrun
-        // the voice on fast models. Lower base (10 cps) — OS voices are slower
-        // than the previous 14 cps estimate.
-        const speechCps = Math.round(10 * (Number(tts.rate) || 1));
-        cps = Math.min(16, Math.max(3, speechCps));
-        const backlog = text.length - spokenIndex;
-        if (backlog > 30) cps = Math.min(cps, 2);
+      if (speechPhaseActive) {
+        cps = Math.max(1, targetCps);
       } else {
         cps = Math.min(CATCHUP_MAX, Math.max(TYPE_CPS * liveSpeed, pending.length));
       }
@@ -526,21 +537,21 @@
       if (mainEl.classList.contains('typing')) {
         mainEl.classList.remove('typing');
         mainEl.replaceChildren();
-        setEmote(liveMood, true); // now she speaks, in the mood she picked
+        setEmote(liveMood, true);
       }
       text += slice;
       renderMarkdownInto(mainEl, text);
       scrollToBottom();
-      maybeSpeak();
       drainTimer = requestAnimationFrame(pace);
       return;
     }
 
     lastFrame = 0;
-    if (finishing && !speechBusy) finalize();
-    else if (finishing) drainTimer = requestAnimationFrame(pace);
+    if (finishing) {
+      phase = 'idle';
+      finalize();
+    }
   }
-
   function finalize(moodOverride) {
     if (!busy) return;
     busy = false;
@@ -552,16 +563,9 @@
     else if (text) moodFlash(liveMood !== 'neutral' ? liveMood : pickEmotion(text), liveHold);
     else setEmote('neutral', false);
     scrollToBottom();
-    if (shouldSpeak && text && !tts?.muted && tts?.provider === 'builtin') {
-      maybeSpeak();
-      const full = textForSpeech(text);
-      const rest = full.slice(spokenIndex).trim();
-      if (rest) {
-        spokenIndex = full.length;
-        speakChunk(rest);
-      }
-    }
     shouldSpeak = false;
+    speechPhaseActive = false;
+    phase = 'idle';
   }
 
   // --- small bits ----------------------------------------------------------
