@@ -26,10 +26,12 @@ your choice of AI provider.
   The facts ride along with every new conversation's system prompt, and you
   can inspect/clear them in ⚙ Settings → Memory.
 - **Mood + speech speed, decided by the model** — every reply is one JSON
-  object `{"mood":"…","speed":…,"text":"…"}`. The mood picks which of the 8
-  emotes she wears (set *before* she starts talking), and speed scales the
-  typing pace (0.7 hushed → 1.8 excited). Replies that don't follow the
-  protocol degrade gracefully to plain text with keyword-based moods.
+  object `{"mood":"…","speed":…,"hold":…,"text":"…"}`. The mood picks which
+  of the 8 emotes she wears (set *before* she starts talking), speed scales
+  the typing pace (0.7 hushed → 1.8 excited), and `hold: true` keeps that
+  emotion on her face across turns instead of easing back to neutral after
+  a few seconds. Replies that don't follow the protocol degrade gracefully
+  to plain text with keyword-based moods.
 
 ## Quick start
 
