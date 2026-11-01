@@ -226,7 +226,7 @@
     u.onend = () => { speechBusy = false; };
     u.onerror = () => { speechBusy = false; };
     // Safety: if onend never fires, release the gate after an estimate.
-    const estMs = Math.max(400, (text.length / Math.max(0.5, u.rate)) * 70);
+    const estMs = Math.max(500, (text.length / Math.max(0.5, u.rate)) * 110);
     setTimeout(() => { if (speechBusy) speechBusy = false; }, estMs);
     try { speechSynthesis.speak(u); } catch { speechBusy = false; }
   }
