@@ -28,6 +28,9 @@ your choice of AI provider.
 - **Keys are encrypted at rest** — API keys in `settings.json` are sealed
   with your OS account (safeStorage → DPAPI on Windows), decrypted only in
   memory. Existing plaintext keys migrate automatically on first launch.
+- **Remembers where she lives** — the window reopens where you last dragged
+  it (saved to settings.json), clamped to whichever screen is connected, so
+  an unplugged monitor can't strand her offscreen.
 - **Tray + summon hotkey** — she lives in the notification area
   (assets/icon.ico): clicking the tray raises her, Ctrl+Shift+K works from
   anywhere. The ✕ button hides her to the tray — **Quit only via the tray

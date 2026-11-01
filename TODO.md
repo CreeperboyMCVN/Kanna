@@ -15,8 +15,6 @@ Backlog of things not built yet. Pick from the top when starting something new.
 
 ## Next candidates
 
-- [ ] **Remember window position** — dragging works but position resets
-  every launch; persist x/y and restore (with on-screen sanity clamping).
 - [ ] **Pet window, done right** — separate always-on-top sprite window,
   own remembered screen position, mood broadcast from main so both windows
   stay in sync. (An earlier two-window split was tried and undone — redo
