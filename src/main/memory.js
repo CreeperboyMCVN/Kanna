@@ -79,7 +79,7 @@ const EXTRACTION_SYSTEM = [
   'Reply with ONLY compact JSON: {"add":[{"key":"short.id","value":"one sentence"}],"remove":["old.key"]}',
   'Rules:',
   '- keys: 1-4 lowercase words joined by dots, no spaces (e.g. user.name, projects.kanna)',
-  '- remember stable facts only: names, preferences, ongoing projects, plans, important events, user corrections',
+  '- remember stable facts only. Examples: names, preferences, ongoing projects, plans, important events, user corrections,...',
   '- never store passwords, API keys, tokens, or any other secrets',
   '- skip small talk, moods, and anything ephemeral',
   '- if nothing changed, reply just {}',
