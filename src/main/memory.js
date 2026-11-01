@@ -138,7 +138,10 @@ async function runRemember(userText, replyText) {
       [{ role: 'user', content: extractUserMessage(userText, replyText, load()) }],
       () => {},           // swallow stream events — the UI must never see this
       EXTRACTION_SYSTEM,
-      { registerInActive: false }, // don't hijack the stop button / chat abort
+      // registerInActive: false — can't be aborted by the chat stop button.
+      // plain: true — returns the raw JSON diff; the reply-protocol reader
+      // must not unwrap it.
+      { registerInActive: false, plain: true },
     );
 
     const ops = parseOps(result?.text);

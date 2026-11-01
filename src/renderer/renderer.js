@@ -25,6 +25,18 @@
     { emotion: 'shy',      re: /\b(blush|shy|embarrassed|flattered)\b|😳/i },
   ];
 
+  // Loose mood words models come up with → the 8 available emotes; anything
+  // unknown stays neutral.
+  const MOOD_ALIASES = {
+    joy: 'happy', joyful: 'happy', excited: 'happy', cheerful: 'happy', glad: 'happy',
+    love: 'happy', loving: 'happy', proud: 'happy', smile: 'happy', giggling: 'happy',
+    cry: 'sad', crying: 'sad', lonely: 'sad', gloomy: 'sad', worried: 'sad', hurt: 'sad',
+    mad: 'angry', annoyed: 'angry', furious: 'angry', grumpy: 'angry', frustrated: 'angry',
+    blush: 'shy', blushing: 'shy', embarrassed: 'shy', bashful: 'shy', flustered: 'shy',
+    shocked: 'surprise', shock: 'surprise', amazed: 'surprise', astonished: 'surprise',
+    confused: 'dizzy', sleepy: 'strained', exhausted: 'strained', tired: 'strained', pain: 'strained',
+  };
+
   let settings = null;
   let history = [];           // { role: 'user' | 'assistant', content }
   let busy = false;
@@ -42,6 +54,12 @@
   let pending = '';           // text queued for display
   let drainTimer = null;      // requestAnimationFrame handle of the pacing loop
   let finishing = false;      // network done — drain the queue, then finalize
+
+  // Per-reply directions from the model ('chat:meta'): which face to wear
+  // and how fast to read the text. Defaults keep the keyword fallback alive
+  // for models that ignore the JSON reply protocol.
+  let liveMood = 'neutral';
+  let liveSpeed = 1;
 
   // Warm the image cache so emote swaps never flicker.
   for (const emotion of EMOTES) {
@@ -184,6 +202,8 @@
     received = '';
     pending = '';
     finishing = false;
+    liveMood = 'neutral';
+    liveSpeed = 1;
     sendBtn.innerHTML = STOP_ICON;
     sendBtn.classList.add('stop');
     sendBtn.title = 'Stop';
@@ -232,6 +252,22 @@
     if (!drainTimer) drainTimer = requestAnimationFrame(pace);
   });
 
+  // The model's directions for this reply. Mood is the first key of the JSON
+  // reply, so it lands before any words: she sets her face while still
+  // thinking, then speaks in that emotion. A mid-reply mood swap goes live.
+  window.kanna.onMeta((meta) => {
+    if (!busy || !bubble) return;
+    if (meta.mood) {
+      liveMood = MOOD_ALIASES[meta.mood] || (EMOTES.includes(meta.mood) ? meta.mood : 'neutral');
+      if (bubble.classList.contains('typing')) setEmote(liveMood, false); // pre-speech face
+      else if (text) setEmote(liveMood, true);                            // mid-speech swap
+    }
+    if (meta.speed) {
+      const v = Number(meta.speed);
+      if (Number.isFinite(v) && v > 0) liveSpeed = Math.min(2.2, Math.max(0.6, v));
+    }
+  });
+
   function pace(ts) {
     drainTimer = null;
     if (!busy) { lastFrame = 0; return; }
@@ -240,7 +276,9 @@
       const dt = lastFrame ? Math.min((ts - lastFrame) / 1000, 0.05) : 1 / 60;
       lastFrame = ts;
 
-      const cps = Math.min(CATCHUP_MAX, Math.max(TYPE_CPS, pending.length));
+      // The model's `speed` direction scales the base typing pace — her own
+      // tune knob (TYPE_CPS / CATCHUP_MAX) stays in charge of the feel.
+      const cps = Math.min(CATCHUP_MAX, Math.max(TYPE_CPS * liveSpeed, pending.length));
       const take = Math.max(1, Math.round(dt * cps));
       const slice = pending.slice(0, take);
       pending = pending.slice(take);
@@ -248,7 +286,7 @@
       if (bubble.classList.contains('typing')) {
         bubble.classList.remove('typing');
         bubble.textContent = '';
-        setEmote('neutral', true); // now she speaks
+        setEmote(liveMood, true); // now she speaks, in the mood she picked
       }
       text += slice;
       bubble.textContent = text;
@@ -269,7 +307,7 @@
     sendBtn.classList.remove('stop');
     sendBtn.title = 'Send (Enter)';
     bubble = null;
-    if (text) moodFlash(pickEmotion(text));
+    if (text) moodFlash(liveMood !== 'neutral' ? liveMood : pickEmotion(text));
     else setEmote('neutral', false);
     scrollToBottom();
   }

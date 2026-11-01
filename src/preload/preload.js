@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld('kanna', {
   onChunk: (listener) => {
     ipcRenderer.on('chat:chunk', (_e, text) => listener(text));
   },
+  onMeta: (listener) => {
+    ipcRenderer.on('chat:meta', (_e, meta) => listener(meta));
+  },
   minimize: () => ipcRenderer.send('win:min'),
   close: () => ipcRenderer.send('win:close'),
 });

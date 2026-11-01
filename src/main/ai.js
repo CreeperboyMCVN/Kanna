@@ -12,15 +12,38 @@ function abortActive() {
 // as tokens arrive and resolves to { stopped, text } at the end. Throws on
 // hard errors (bad key, bad model, network) — the renderer shows the message.
 async function runChat(messages, emit, system, opts = {}) {
-  const { registerInActive = true } = opts;
+  const { registerInActive = true, plain = false } = opts;
   const settings = getSettings();
   const controller = new AbortController();
   if (registerInActive) active = { controller };
 
   let text = '';
+  const reader = plain ? null : createReplyReader();
   const push = (chunk) => {
-    text += chunk;
-    emit('chat:chunk', chunk);
+    if (!reader) {
+      text += chunk;
+      emit('chat:chunk', chunk);
+      return;
+    }
+    const meta = reader.feed(chunk); // announces mood/speed as soon as they arrive
+    if (meta) emit('chat:meta', meta);
+    const t = reader.takeText();
+    if (t) {
+      text += t;
+      emit('chat:chunk', t);
+    }
+  };
+  // Runs on success and on abort: hand over any decoded text left in the
+  // reader buffer and a meta that was still pending.
+  const flush = () => {
+    if (!reader) return;
+    const meta = reader.finish();
+    if (meta) emit('chat:meta', meta);
+    const t = reader.takeText();
+    if (t) {
+      text += t;
+      emit('chat:chunk', t);
+    }
   };
 
   try {
@@ -37,8 +60,10 @@ async function runChat(messages, emit, system, opts = {}) {
     } else {
       await streamOpenAI(settings, messages, push, controller.signal, systemPrompt);
     }
+    flush();
     return { stopped: false, text };
   } catch (err) {
+    flush();
     if (isAbort(err)) return { stopped: true, text };
     throw err;
   } finally {
@@ -46,15 +71,151 @@ async function runChat(messages, emit, system, opts = {}) {
   }
 }
 
+// --- reply protocol ---------------------------------------------------------
+// Chat replies are one JSON object: {"mood":"…","speed":…,"text":"…"} — keys
+// in this fixed order so mood and speed are known before any words stream.
+// createReplyReader() feeds raw chunks through an incremental decoder and
+// yields progressively the decoded `text` value, so the bubble still types
+// out live. Mood/speed surface via 'chat:meta'. A reply that doesn't start
+// as JSON (model ignored the protocol) degrades to raw passthrough, and a
+// broken JSON object falls back to the raw output so the bubble is never
+// empty. Memory extraction opts out entirely via plain:true.
+
+function createReplyReader() {
+  const r = {
+    raw: '',
+    mode: null,        // 'json' | 'plain' — decided on the first real char
+    textFrom: -1,      // raw index where the "text" value starts
+    textDone: false,   // closing quote reached
+    pos: 0,            // decode cursor within the text value
+    mood: '',          // as the model wrote it (lowercased)
+    speed: 0,
+    moodEmit: undefined,
+    speedEmit: undefined,
+    moodSent: false,
+    speedSent: false,
+    out: '',           // decoded text not yet handed to the caller
+  };
+
+  const escMap = { n: '\n', t: '\t', r: '\r', b: '\b', f: '\f' };
+
+  function scanMeta() {
+    if (!r.moodSent) {
+      const m = /"mood"\s*:\s*"([^"]*)"/.exec(r.raw);
+      if (m) {
+        r.mood = m[1].trim().toLowerCase();
+        r.moodSent = true;
+      }
+    }
+    if (!r.speedSent) {
+      const m = /"speed"\s*:\s*([0-9]*\.?[0-9]+)/.exec(r.raw);
+      if (m) {
+        r.speed = Number(m[1]);
+        r.speedSent = true;
+      }
+    }
+  }
+
+  // Decodes as much of the "text" string value as has streamed in.
+  function decode() {
+    while (r.textFrom >= 0 && !r.textDone && r.pos < r.raw.length) {
+      const ch = r.raw[r.pos];
+      if (ch === '"') {
+        r.textDone = true;
+        break;
+      }
+      if (ch === '\\') {
+        if (r.pos + 1 >= r.raw.length) break;        // escape split across chunks
+        if (r.raw[r.pos + 1] === 'u') {
+          if (r.pos + 6 > r.raw.length) break;       // \uXXXX split across chunks
+          const code = parseInt(r.raw.slice(r.pos + 2, r.pos + 6), 16);
+          if (!Number.isFinite(code)) break;          // not hex — skip rather than guess
+          r.out += String.fromCharCode(code);
+          r.pos += 6;
+          continue;
+        }
+        const esc = escMap[r.raw[r.pos + 1]];
+        r.out += esc !== undefined ? esc : r.raw[r.pos + 1];
+        r.pos += 2;
+        continue;
+      }
+      r.out += ch;
+      r.pos++;
+    }
+  }
+
+  function takeText() {
+    const out = r.out;
+    r.out = '';
+    return out;
+  }
+
+  function takeMeta() {
+    let meta = null;
+    if (r.moodSent && r.mood !== r.moodEmit) {
+      (meta ??= {}).mood = r.mood;
+      r.moodEmit = r.mood;
+    }
+    if (r.speedSent && r.speed !== r.speedEmit) {
+      (meta ??= {}).speed = r.speed;
+      r.speedEmit = r.speed;
+    }
+    return meta;
+  }
+
+  function feed(chunk) {
+    r.raw += chunk;
+    if (!r.mode) {
+      // Tolerate a ```json fence before the object when deciding.
+      const t = r.raw.replace(/^\s+/, '').replace(/^```(?:json)?\s*/i, '');
+      if (!t) return null;
+      r.mode = t[0] === '{' ? 'json' : 'plain';
+    }
+    if (r.mode === 'plain') {
+      r.out += chunk;
+      return null;
+    }
+    scanMeta();
+    if (r.textFrom < 0) {
+      const m = /"text"\s*:\s*"/.exec(r.raw);
+      if (m) {
+        r.textFrom = m.index + m[0].length;
+        r.pos = r.textFrom; // start decoding at the value, not at the object
+      }
+    }
+    decode();
+    return takeMeta();
+  }
+
+  function finish() {
+    if (r.mode === 'json') decode();
+    // Protocol fell apart before any visible text: show the raw output
+    // rather than an empty bubble.
+    if (r.mode === 'json' && r.out === '' && !r.textDone) r.out = r.raw.trim();
+    return takeMeta();
+  }
+
+  return { feed, finish, takeText };
+}
+
 // Persona + current memory, injected into every chat request.
+const REPLY_FORMAT = [
+  'Reply protocol — answer with a single JSON object and nothing else (no markdown fences, no words before or after it), with the keys in exactly this order:',
+  '{"mood":"…","speed":…,"text":"…"}',
+  '- mood: the emotion this reply carries: neutral, happy, sad, angry, shy, surprise, dizzy, or strained.',
+  '- speed: how the text should feel spoken: 0.7 hushed/soothing, 1 normal, 1.8 excited.',
+  '- text: your reply as the user should see it. It is inside JSON, so write newlines as \\n and escape double quotes as \\".',
+].join('\n');
+
 function composeChatSystem(settings) {
   const persona = settings.persona || DEFAULT_PERSONA;
   // Lazy require — memory.js pulls ai.js in (see note there).
   const memory = require('./memory');
   const block = memory.renderForPrompt();
-  return block
-    ? `${persona}\n\nLong-term memory about the user:\n${block}`
-    : persona;
+  const parts = [persona];
+  if (block) parts.push(`Long-term memory about the user:\n${block}`);
+  parts.push(REPLY_FORMAT);
+  return parts.join('\n\n');
 }
 
 function isAbort(err) {
