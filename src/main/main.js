@@ -95,9 +95,9 @@ app.whenReady().then(() => {
 
   ipcMain.handle('settings:save', (_e, patch) => settings.save(patch));
 
-  ipcMain.handle('memory:get', () => memory.load());
-  ipcMain.handle('memory:remove', (_e, key) => memory.removeEntry(String(key || '')));
-  ipcMain.handle('memory:clear', () => memory.clearAll());
+  ipcMain.handle('memory:get', () => ({ entries: memory.load() }));
+  ipcMain.handle('memory:remove', (_e, key) => ({ entries: memory.removeEntry(String(key || '')) }));
+  ipcMain.handle('memory:clear', () => ({ entries: memory.clearAll() }));
 
   ipcMain.handle('chat:send', (event, messages) => {
     const emit = (type, payload) => {

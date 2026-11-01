@@ -66,11 +66,18 @@
   // --- memory panel (independent of the Save button) ---------------------------
 
   async function loadMemory() {
-    const data = await window.kanna.getMemory();
     const list = document.getElementById('memory-list');
     list.textContent = '';
 
-    if (!data.entries.length) {
+    let entries = [];
+    try {
+      const data = await window.kanna.getMemory();
+      entries = Array.isArray(data) ? data : Array.isArray(data?.entries) ? data.entries : [];
+    } catch (err) {
+      console.error('[memory panel]', err);
+    }
+
+    if (!entries.length) {
       const empty = document.createElement('p');
       empty.className = 'memory-empty';
       empty.textContent = 'Nothing remembered yet — facts appear here when a chat teaches her something durable.';
@@ -78,7 +85,7 @@
       return;
     }
 
-    for (const entry of data.entries) {
+    for (const entry of entries) {
       const row = document.createElement('div');
       row.className = 'memory-row';
 
