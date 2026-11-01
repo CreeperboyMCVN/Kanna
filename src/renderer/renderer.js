@@ -72,6 +72,7 @@
   let tts = { provider: 'builtin', voice: '', rate: 1, pitch: 1, muted: false };
   let shouldSpeak = false;   // set per turn; finalize() speaks only if true
   let spokenIndex = 0;       // how much of `text` has already been queued for speech
+  let speechBusy = false;    // true while an utterance is being spoken (gates typing)
 
   // Warm the image cache so emote swaps never flicker.
   for (const emotion of EMOTES) {
@@ -193,6 +194,7 @@
   // --- TTS (built-in speechSynthesis) ---------------------------------------
 
   function cancelSpeech() {
+    speechBusy = false;
     try { if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel(); } catch { /* ignore */ }
   }
 
@@ -220,7 +222,13 @@
     // mood-based pitch nudge
     const moodPitch = { happy: 1.1, sad: 0.85, angry: 0.95, surprise: 1.05, shy: 0.9, strained: 0.9 };
     if (moodPitch[liveMood]) u.pitch = Math.min(2, Math.max(0.5, u.pitch * moodPitch[liveMood]));
-    try { speechSynthesis.speak(u); } catch { /* ignore */ }
+    speechBusy = true;
+    u.onend = () => { speechBusy = false; };
+    u.onerror = () => { speechBusy = false; };
+    // Safety: if onend never fires, release the gate after an estimate.
+    const estMs = Math.max(400, (text.length / Math.max(0.5, u.rate)) * 70);
+    setTimeout(() => { if (speechBusy) speechBusy = false; }, estMs);
+    try { speechSynthesis.speak(u); } catch { speechBusy = false; }
   }
 
   function textForSpeech(md) {
@@ -247,17 +255,7 @@
     }
     if (!chunk) return;
     spokenIndex += chunk.length;
-    const u = new SpeechSynthesisUtterance(chunk.trim());
-    const voices = speechSynthesis.getVoices();
-    const chosen = voices.find((v) => v.name === tts.voice);
-    if (chosen) u.voice = chosen;
-    const rate = Number(tts.rate);
-    const pitch = Number(tts.pitch);
-    u.rate = Number.isFinite(rate) ? Math.min(2, Math.max(0.5, rate)) : 1;
-    u.pitch = Number.isFinite(pitch) ? Math.min(2, Math.max(0.5, pitch)) : 1;
-    const moodPitch = { happy: 1.1, sad: 0.85, angry: 0.95, surprise: 1.05, shy: 0.9, strained: 0.9 };
-    if (moodPitch[liveMood]) u.pitch = Math.min(2, Math.max(0.5, u.pitch * moodPitch[liveMood]));
-    try { speechSynthesis.speak(u); } catch { /* ignore */ }
+    speakChunk(chunk.trim());
   }
 
   function isConfigured(s) {
@@ -500,18 +498,23 @@
 
       // The model's `speed` direction scales the base typing pace — her own
       // tune knob (TYPE_CPS / CATCHUP_MAX) stays in charge of the feel.
-      let cps;
       const ttsActive = shouldSpeak && !tts?.muted && tts?.provider === 'builtin';
+      if (ttsActive && speechBusy) {
+        // Speech is still playing — hold the typewriter so text doesn't run
+        // ahead of the voice. Keep the loop alive; resume once speech ends.
+        lastFrame = ts;
+        drainTimer = requestAnimationFrame(pace);
+        return;
+      }
+      let cps;
       if (ttsActive) {
-        // Pace the text to the speech rate (~14 chars/sec at rate 1) so the
-        // typewriter doesn't outrun the voice on fast models.
-        const speechCps = Math.round(14 * (Number(tts.rate) || 1));
-        cps = Math.min(20, Math.max(4, speechCps));
-        // If typed text is running ahead of what's been spoken, slow down
-        // so speech can catch up.
+        // Pace the text to the speech rate so the typewriter doesn't outrun
+        // the voice on fast models. Lower base (10 cps) — OS voices are slower
+        // than the previous 14 cps estimate.
+        const speechCps = Math.round(10 * (Number(tts.rate) || 1));
+        cps = Math.min(16, Math.max(3, speechCps));
         const backlog = text.length - spokenIndex;
-        if (backlog > 40) cps = Math.min(cps, 3);
-        if (backlog > 80) cps = Math.min(cps, 2);
+        if (backlog > 30) cps = Math.min(cps, 2);
       } else {
         cps = Math.min(CATCHUP_MAX, Math.max(TYPE_CPS * liveSpeed, pending.length));
       }
@@ -533,7 +536,8 @@
     }
 
     lastFrame = 0;
-    if (finishing) finalize();
+    if (finishing && !speechBusy) finalize();
+    else if (finishing) drainTimer = requestAnimationFrame(pace);
   }
 
   function finalize(moodOverride) {
