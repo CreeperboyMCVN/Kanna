@@ -4,7 +4,11 @@
   const $ = (sel) => document.querySelector(sel);
 
   const sprite = $('#sprite');
-  const messagesEl = $('#messages');
+  const turnEl = $('#turn');
+  const priorEl = $('#turn-prior');
+  const mainEl = $('#turn-main');
+  const tapEl = $('#turn-tap');
+  const composerEl = $('#composer');
   const inputEl = $('#input');
   const sendBtn = $('#send');
   const statusEl = $('#status');
@@ -40,11 +44,12 @@
   let settings = null;
   let history = [];           // { role: 'user' | 'assistant', content }
   let busy = false;
-  let bubble = null;          // assistant bubble being streamed into
-  let text = '';              // accumulated reply text
+  let text = '';              // accumulated reply text / her latest reply
+  let lastUserMsg = '';       // your latest message (feeds the small top line)
+  let composerOpen = true;    // composer row visible at the bottom of the box
   let moodTimer = null;
   let toastTimer = null;
-  let pinned = true;          // auto-scroll while the user is at the bottom
+  let pinned = true;          // auto-scroll while the reader is at the bottom
 
   // Streaming smoothing: network chunks land in `pending` and get typed out
   // a few characters per frame in `pace()`. The slice size scales with the
@@ -197,15 +202,14 @@
       ? `Ready — provider: ${settings.provider}`
       : 'Not configured — add an API key in Settings';
 
-    const welcome = document.getElementById('welcome');
-    if (welcome && welcome.isConnected) updateWelcome(welcome);
+    updateWelcome(mainEl); // guarded inside: only lands while the box is fresh
   }
-
   // First message flavor: fresh install → intro/setup nudge; memory → personal
   // welcome back (by name when she knows it); plain config → generic welcome.
   // The token guard keeps overlapping refreshes from stomping each other.
   let welcomeToken = 0;
   async function updateWelcome(el) {
+    if (history.length || text) return; // the box belongs to the conversation now
     const token = ++welcomeToken;
 
     if (!isConfigured(settings)) {
@@ -221,7 +225,7 @@
       // memory read failed — fall through to the generic welcome
     }
 
-    if (token !== welcomeToken) return; // a newer refresh already took over
+    if (token !== welcomeToken || history.length) return; // a newer refresh / the conversation already took over
 
     const named = entries.find((e) => e.key === 'user.name' || e.key.endsWith('.name'));
     if (named?.value) {
@@ -237,60 +241,62 @@
 
   // --- chat ----------------------------------------------------------------
 
-  function addMsg(className, textContent) {
-    const el = document.createElement('div');
-    el.className = className;
-    if (textContent !== undefined) el.textContent = textContent;
-    messagesEl.append(el);
-    scrollToBottom(true);
-    return el;
+  function makeDots() {
+    const dots = document.createElement('span');
+    dots.className = 'dots';
+    for (let i = 0; i < 3; i++) dots.append(document.createElement('i'));
+    return dots;
   }
 
   function scrollToBottom(force) {
-    if (force || pinned) messagesEl.scrollTop = messagesEl.scrollHeight;
+    if (force || pinned) mainEl.scrollTop = mainEl.scrollHeight;
   }
 
-  messagesEl.addEventListener('scroll', () => {
-    pinned = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 48;
+  mainEl.addEventListener('scroll', () => {
+    pinned = mainEl.scrollHeight - mainEl.scrollTop - mainEl.clientHeight < 48;
   });
 
-  // --- compact chat -----------------------------------------------------------
-  // The viewport keeps only the two latest turns: the current exchange shows
-  // big, the older one shrinks to small text above. When the user starts
-  // typing, the current turn demotes early so a fresh exchange has room;
-  // clearing the input re-promotes it. The History tab (header) reaches back
-  // into everything, which stays in the in-memory `history` array.
+  // The composer lives inside the turn box, and the very bottom of the box is
+  // a hit strip: clicking it opens the composer — or interrupts her while
+  // she's replying.
+  tapEl.addEventListener('click', () => {
+    if (busy) { window.kanna.stopChat(); return; }
+    if (composerOpen) return;
+    openCompose();
+    inputEl.focus();
+  });
 
-  let demoted = false; // current turn already shrunk while typing?
+  // Composing view: her last reply pushes into the small top line (what
+  // you're answering to) and your last message takes the big spot back.
+  function openCompose() {
+    if (text.trim()) {
+      renderMarkdownInto(priorEl, text);
+      renderMarkdownInto(mainEl, lastUserMsg);
+      scrollToBottom();
+    }
+    composerOpen = true;
+    composerEl.classList.add('open');
+    turnEl.classList.add('composing');
+  }
 
-  function demoteCurrent() {
-    for (const el of messagesEl.querySelectorAll('.msg.big')) {
-      el.classList.replace('big', 'tiny');
+  // Escape out of composing: restore the reading view — her reply big, your
+  // message small on top.
+  function closeCompose() {
+    composerOpen = false;
+    composerEl.classList.remove('open');
+    turnEl.classList.remove('composing');
+    if (text.trim()) {
+      renderMarkdownInto(mainEl, text);
+      renderMarkdownInto(priorEl, lastUserMsg);
+      scrollToBottom();
     }
   }
 
-  // Brings the last exchange (assistant reply paired with its user line, or
-  // an unpaired welcome) back to full size.
-  function promoteLastExchange() {
-    const nodes = [...messagesEl.querySelectorAll('.msg.tiny')];
-    const last = nodes[nodes.length - 1];
-    if (!last) return;
-    if (last.classList.contains('assistant')) {
-      const prev = last.previousElementSibling;
-      last.classList.replace('tiny', 'big');
-      if (prev && prev.classList.contains('user') && prev.classList.contains('tiny')) {
-        prev.classList.replace('tiny', 'big');
-      }
-    } else if (last.classList.contains('user')) {
-      last.classList.replace('tiny', 'big');
-    }
-  }
-
-  // Only the two latest turns stay in the DOM; everything older leaves it —
-  // the full log lives in `history` for the History tab.
-  function pruneOld() {
-    while (messagesEl.children.length > 4) messagesEl.removeChild(messagesEl.firstElementChild);
-  }
+  // Fresh session: start with the composer open so the first word needs no
+  // tap hunt (once she replies, it closes and the tap strip takes over).
+  composerOpen = true;
+  composerEl.classList.add('open');
+  turnEl.classList.add('composing');
 
   function autoGrow() {
     inputEl.style.height = 'auto';
@@ -309,27 +315,30 @@
 
     inputEl.value = '';
     autoGrow();
+
+    // Sending always closes the composer — the box becomes the stage for her
+    // reply, your words shrink to the small top line.
+    composerOpen = false;
+    composerEl.classList.remove('open');
+    turnEl.classList.remove('composing');
+
+    lastUserMsg = content;
     history.push({ role: 'user', content });
-    demoteCurrent();
-    addMsg('msg user big', content);
+    renderMarkdownInto(priorEl, content);
 
-    // Typing bubble that chunks stream into.
-    bubble = addMsg('msg assistant typing big');
-    const dots = document.createElement('span');
-    dots.className = 'dots';
-    for (let i = 0; i < 3; i++) dots.append(document.createElement('i'));
-    bubble.append(dots);
-    pruneOld(); // keep only the two latest turns in the viewport
-
-    busy = true;
+    // Typing dots at the big spot until the first tokens arrive.
     text = '';
+    mainEl.classList.remove('error');
+    mainEl.classList.add('typing');
+    mainEl.replaceChildren(makeDots());
+    scrollToBottom(true);
+
     received = '';
     pending = '';
     finishing = false;
     liveMood = 'neutral';
     liveSpeed = 1;
     liveHold = null;
-    demoted = false;
     sendBtn.innerHTML = STOP_ICON;
     sendBtn.classList.add('stop');
     sendBtn.title = 'Stop';
@@ -343,18 +352,19 @@
         finishing = true;
         if (!drainTimer) drainTimer = requestAnimationFrame(pace);
       } else if (result.stopped) {
-        bubble.classList.remove('typing');
-        bubble.textContent = '…';
+        mainEl.classList.remove('typing');
+        mainEl.textContent = '…';
         finalize();
       } else {
-        bubble.remove(); // no content and not stopped — drop the empty bubble
+        mainEl.classList.remove('typing');
+        mainEl.replaceChildren(); // no content and not stopped — leave it empty
         finalize();
       }
     } catch (err) {
       pending = '';
-      bubble.classList.remove('typing');
-      bubble.textContent = `⚠ ${pickErrorMessage(err)}`;
-      bubble.classList.add('error');
+      mainEl.classList.remove('typing');
+      mainEl.textContent = `⚠ ${pickErrorMessage(err)}`;
+      mainEl.classList.add('error');
       // Something went wrong — she reacts to the glitch, not to whatever
       // mood the half-typed reply happened to carry.
       finalize('dizzy');
@@ -374,7 +384,7 @@
   let lastFrame = 0;          // timestamp of the previous paced frame
 
   window.kanna.onChunk((chunk) => {
-    if (!busy || !bubble) return;
+    if (!busy) return;
     received += chunk;
     pending += chunk;
     if (!drainTimer) drainTimer = requestAnimationFrame(pace);
@@ -384,10 +394,10 @@
   // reply, so it lands before any words: she sets her face while still
   // thinking, then speaks in that emotion. A mid-reply mood swap goes live.
   window.kanna.onMeta((meta) => {
-    if (!busy || !bubble) return;
+    if (!busy) return;
     if (meta.mood) {
       liveMood = MOOD_ALIASES[meta.mood] || (EMOTES.includes(meta.mood) ? meta.mood : 'neutral');
-      if (bubble.classList.contains('typing')) setEmote(liveMood, false); // pre-speech face
+      if (mainEl.classList.contains('typing')) setEmote(liveMood, false); // pre-speech face
       else if (text) setEmote(liveMood, true);                            // mid-speech swap
     }
     if (meta.speed) {
@@ -412,13 +422,13 @@
       const slice = pending.slice(0, take);
       pending = pending.slice(take);
 
-      if (bubble.classList.contains('typing')) {
-        bubble.classList.remove('typing');
-        bubble.textContent = '';
+      if (mainEl.classList.contains('typing')) {
+        mainEl.classList.remove('typing');
+        mainEl.replaceChildren();
         setEmote(liveMood, true); // now she speaks, in the mood she picked
       }
       text += slice;
-      renderMarkdownInto(bubble, text);
+      renderMarkdownInto(mainEl, text);
       scrollToBottom();
       drainTimer = requestAnimationFrame(pace);
       return;
@@ -435,7 +445,6 @@
     sendBtn.innerHTML = SEND_ICON;
     sendBtn.classList.remove('stop');
     sendBtn.title = 'Send (Enter)';
-    bubble = null;
     if (moodOverride) moodFlash(moodOverride, false);
     else if (text) moodFlash(liveMood !== 'neutral' ? liveMood : pickEmotion(text), liveHold);
     else setEmote('neutral', false);
@@ -466,17 +475,7 @@
     }
   });
 
-  inputEl.addEventListener('input', () => {
-    autoGrow();
-    const typing = inputEl.value.trim().length > 0;
-    if (typing && !demoted) {
-      demoted = true;
-      demoteCurrent();
-    } else if (!typing && demoted) {
-      demoted = false;
-      promoteLastExchange();
-    }
-  });
+  inputEl.addEventListener('input', autoGrow);
 
   // Borderless window buttons.
   $('#win-min').addEventListener('click', () => window.kanna.minimize());
@@ -528,16 +527,14 @@
     if (historyDrawer.classList.contains('open')) closeHistory();
   });
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && historyDrawer.classList.contains('open')) closeHistory();
+    if (e.key === 'Escape') {
+      if (historyDrawer.classList.contains('open')) closeHistory();
+      else if (composerOpen) closeCompose();
+    }
   });
 
   window.addEventListener('kanna:settings-changed', refreshSettings);
   window.addEventListener('kanna:toast', (e) => toast(e.detail || ''));
 
-  refreshSettings().then(() => {
-    const welcome = addMsg('msg assistant big');
-    welcome.id = 'welcome';
-    updateWelcome(welcome);
-    inputEl.focus();
-  });
+  refreshSettings();
 })();

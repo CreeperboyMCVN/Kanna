@@ -105,11 +105,15 @@
     </section>
 
     <section class="chat">
-      <div id="messages" class="messages"></div>
-      <form id="composer" class="composer">
-        <textarea id="input" rows="1" placeholder="Say something…"></textarea>
-        <button id="send" type="submit" aria-label="Send" title="Send (Enter)"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
-      </form>
+      <div id="turn" class="turn">
+        <div id="turn-prior" class="turn-prior"></div>
+        <div id="turn-main" class="turn-main"></div>
+        <div id="turn-tap" class="turn-tap"></div>
+        <form id="composer" class="composer">
+          <textarea id="input" rows="1" placeholder="Say something…"></textarea>
+          <button id="send" type="submit" aria-label="Send" title="Send (Enter)"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+        </form>
+      </div>
     </section>
   </div>
 
