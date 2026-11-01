@@ -2,19 +2,22 @@
 
 Backlog of things not built yet. Pick from the top when starting something new.
 
-## Next candidates
+## Agentic — starts after the simple chat feature is finished
 
-- [ ] **Agentic: Kanna writes code into a real text editor** — code blocks
-  already stay out of the bubble (a `⌘ lang · N lines — written to editor`
-  chip appears instead). Next step, on finalize: if the reply contained
-  fenced blocks, main writes each one to `%APPDATA%\Kanna\code\<n>.<ext>`
+- [ ] **Kanna writes code into a real text editor** — code blocks already
+  stay out of the bubble (a `⌘ lang · N lines — written to editor` chip
+  appears instead). Next step, on finalize: if the reply contained fenced
+  blocks, main writes each one to `%APPDATA%\Kanna\code\<n>.<ext>`
   (extension guessed from the fence tag), opens it with `shell.openPath` so
   the user's default editor picks it up, and the chip confirms. Chips are
   clickable to re-open their file later. The "writing…" state becomes the
   moment she types the file in — fs write while the model streams.
+
+## Next candidates
+
 - [ ] **Encrypt API keys with `safeStorage`** — they sit plaintext in
-  `%APPDATA%\Kanna\settings.json` (DPAPI on Windows). Rename legacy plaintext
-  values on first load after upgrade.
+  `%APPDATA%\Kanna\settings.json` (DPAPI on Windows). Migrate legacy
+  plaintext values on first load after upgrade.
 - [ ] **"Fetch models" button per provider** — hit `/models` (OpenAI +
   custom OpenAI-compatible), Anthropic and Gemini listing endpoints, so
   nobody has to type model IDs blind.
