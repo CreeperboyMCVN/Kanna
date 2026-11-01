@@ -254,6 +254,44 @@
     pinned = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 48;
   });
 
+  // --- compact chat -----------------------------------------------------------
+  // The viewport keeps only the two latest turns: the current exchange shows
+  // big, the older one shrinks to small text above. When the user starts
+  // typing, the current turn demotes early so a fresh exchange has room;
+  // clearing the input re-promotes it. The History tab (header) reaches back
+  // into everything, which stays in the in-memory `history` array.
+
+  let demoted = false; // current turn already shrunk while typing?
+
+  function demoteCurrent() {
+    for (const el of messagesEl.querySelectorAll('.msg.big')) {
+      el.classList.replace('big', 'tiny');
+    }
+  }
+
+  // Brings the last exchange (assistant reply paired with its user line, or
+  // an unpaired welcome) back to full size.
+  function promoteLastExchange() {
+    const nodes = [...messagesEl.querySelectorAll('.msg.tiny')];
+    const last = nodes[nodes.length - 1];
+    if (!last) return;
+    if (last.classList.contains('assistant')) {
+      const prev = last.previousElementSibling;
+      last.classList.replace('tiny', 'big');
+      if (prev && prev.classList.contains('user') && prev.classList.contains('tiny')) {
+        prev.classList.replace('tiny', 'big');
+      }
+    } else if (last.classList.contains('user')) {
+      last.classList.replace('tiny', 'big');
+    }
+  }
+
+  // Only the two latest turns stay in the DOM; everything older leaves it —
+  // the full log lives in `history` for the History tab.
+  function pruneOld() {
+    while (messagesEl.children.length > 4) messagesEl.removeChild(messagesEl.firstElementChild);
+  }
+
   function autoGrow() {
     inputEl.style.height = 'auto';
     inputEl.style.height = `${Math.min(inputEl.scrollHeight, 96)}px`;
@@ -272,14 +310,16 @@
     inputEl.value = '';
     autoGrow();
     history.push({ role: 'user', content });
-    addMsg('msg user', content);
+    demoteCurrent();
+    addMsg('msg user big', content);
 
     // Typing bubble that chunks stream into.
-    bubble = addMsg('msg assistant typing');
+    bubble = addMsg('msg assistant typing big');
     const dots = document.createElement('span');
     dots.className = 'dots';
     for (let i = 0; i < 3; i++) dots.append(document.createElement('i'));
     bubble.append(dots);
+    pruneOld(); // keep only the two latest turns in the viewport
 
     busy = true;
     text = '';
@@ -289,6 +329,7 @@
     liveMood = 'neutral';
     liveSpeed = 1;
     liveHold = null;
+    demoted = false;
     sendBtn.innerHTML = STOP_ICON;
     sendBtn.classList.add('stop');
     sendBtn.title = 'Stop';
@@ -425,17 +466,76 @@
     }
   });
 
-  inputEl.addEventListener('input', autoGrow);
+  inputEl.addEventListener('input', () => {
+    autoGrow();
+    const typing = inputEl.value.trim().length > 0;
+    if (typing && !demoted) {
+      demoted = true;
+      demoteCurrent();
+    } else if (!typing && demoted) {
+      demoted = false;
+      promoteLastExchange();
+    }
+  });
 
   // Borderless window buttons.
   $('#win-min').addEventListener('click', () => window.kanna.minimize());
   $('#win-close').addEventListener('click', () => window.kanna.close());
 
+  // --- history tab ---------------------------------------------------------------
+
+  const historyDrawer = $('#history-drawer');
+  const historyList = $('#history-list');
+
+  function openHistory() {
+    historyList.textContent = '';
+    if (!history.length) {
+      const empty = document.createElement('p');
+      empty.className = 'history-empty';
+      empty.textContent = 'Nothing yet — turns you exchange stack up here (for this session).';
+      historyList.append(empty);
+    } else {
+      for (const m of history) {
+        const line = document.createElement('div');
+        line.className = `history-turn ${m.role}`;
+
+        const who = document.createElement('span');
+        who.className = 'who';
+        who.textContent = m.role === 'user' ? 'You' : 'Kanna';
+
+        const body = document.createElement('div');
+        body.className = 'what';
+        renderMarkdownInto(body, m.content || '');
+
+        line.append(who, body);
+        historyList.append(line);
+      }
+      historyList.scrollTop = historyList.scrollHeight;
+    }
+    historyDrawer.classList.add('open');
+    $('#scrim').classList.remove('hidden');
+  }
+
+  function closeHistory() {
+    historyDrawer.classList.remove('open');
+    // Shared scrim: only dim it out when the settings drawer isn't the one open.
+    if (!$('#drawer').classList.contains('open')) $('#scrim').classList.add('hidden');
+  }
+
+  $('#btn-history').addEventListener('click', openHistory);
+  $('#btn-history-close').addEventListener('click', closeHistory);
+  $('#scrim').addEventListener('click', () => {
+    if (historyDrawer.classList.contains('open')) closeHistory();
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && historyDrawer.classList.contains('open')) closeHistory();
+  });
+
   window.addEventListener('kanna:settings-changed', refreshSettings);
   window.addEventListener('kanna:toast', (e) => toast(e.detail || ''));
 
   refreshSettings().then(() => {
-    const welcome = addMsg('msg assistant');
+    const welcome = addMsg('msg assistant big');
     welcome.id = 'welcome';
     updateWelcome(welcome);
     inputEl.focus();
