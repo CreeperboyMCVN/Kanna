@@ -42,6 +42,6 @@ Backlog of things not built yet. Pick from the top when starting something new.
 - Full chat history persistence — memory is durable **facts** only, by
   design; history is in-memory and cleared on close.
 - Pet / separate sprite window — tried, undone, then decided against in
-  favor of the compact chatbox (two latest turns + History tab).
+  favor of the turn-box chat box (no second window at all).
 - Maximize/resize handling — the window is fixed 340×560 (`resizable: false`,
   maximize button removed) on purpose.

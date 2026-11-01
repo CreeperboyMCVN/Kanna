@@ -35,11 +35,14 @@ your choice of AI provider.
   (assets/icon.ico): clicking the tray raises her, Ctrl+Shift+K works from
   anywhere. The ✕ button hides her to the tray — **Quit only via the tray
   menu**, so chats and streaming survive accidental closes.
-- **Compact chatbox** — the viewport holds just the two latest turns: the
-  current exchange at full size, the older one shrunk to small text above.
-  Starting to type already makes room (the current reply demotes; clearing
-  the input re-promotes it). The 🕘 History tab in the header opens the full
-  session log, older turns included.
+- **Turn-box chat** — one bordered box carries the exchange: her current
+  reply fills it big (scrolling inside, no scrollbar), the other half of the
+  exchange sits small on top. Clicking the very bottom of the box opens the
+  composer *inside* the box — her reply pushes to the small top line, your
+  last message takes the big spot — and while she's streaming the same click
+  interrupts her. After you send, your message becomes the top line and her
+  reply streams into the big spot. The 🕘 History tab in the header opens the
+  full in-memory session log, older turns included.
 - **Long-term memory** — after each turn, Kanna runs a quiet background
   request to the same provider asking "did anything durable just change?",
   and stores the answers as short facts in `memory.json` (never secrets).
