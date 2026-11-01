@@ -43,5 +43,5 @@ Backlog of things not built yet. Pick from the top when starting something new.
   design; history is in-memory and cleared on close.
 - Pet / separate sprite window — tried, undone, then decided against in
   favor of the turn-box chat box (no second window at all).
-- Maximize/resize handling — the window is fixed 340×560 (`resizable: false`,
+- Maximize/resize handling — the window is fixed 340×400 (`resizable: false`,
   maximize button removed) on purpose.
