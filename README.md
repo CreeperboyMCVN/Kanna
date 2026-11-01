@@ -105,7 +105,16 @@ src/
 assets/        emote pairs + background art
 ```
 
-## Notes
+## Build
+
+```bash
+npm run dist
+```
+
+Produces `dist/Kanna Setup 0.1.0.exe` (NSIS installer) plus `dist/win-unpacked/`
+(the unpacked app, handy for a quick smoke test). The tray/window icon is
+`assets/icon.ico` (32×32); the installer icon is `assets/icon.png` (512×512,
+generated from the happy emote).
 
 - Requests run in the main process (no CORS headaches), stream over IPC, and
   can be aborted.
