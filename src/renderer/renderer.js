@@ -500,7 +500,21 @@
 
       // The model's `speed` direction scales the base typing pace — her own
       // tune knob (TYPE_CPS / CATCHUP_MAX) stays in charge of the feel.
-      const cps = Math.min(CATCHUP_MAX, Math.max(TYPE_CPS * liveSpeed, pending.length));
+      let cps;
+      const ttsActive = shouldSpeak && !tts?.muted && tts?.provider === 'builtin';
+      if (ttsActive) {
+        // Pace the text to the speech rate (~14 chars/sec at rate 1) so the
+        // typewriter doesn't outrun the voice on fast models.
+        const speechCps = Math.round(14 * (Number(tts.rate) || 1));
+        cps = Math.min(20, Math.max(4, speechCps));
+        // If typed text is running ahead of what's been spoken, slow down
+        // so speech can catch up.
+        const backlog = text.length - spokenIndex;
+        if (backlog > 40) cps = Math.min(cps, 3);
+        if (backlog > 80) cps = Math.min(cps, 2);
+      } else {
+        cps = Math.min(CATCHUP_MAX, Math.max(TYPE_CPS * liveSpeed, pending.length));
+      }
       const take = Math.max(1, Math.round(dt * cps));
       const slice = pending.slice(0, take);
       pending = pending.slice(take);
