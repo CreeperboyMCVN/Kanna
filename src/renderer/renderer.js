@@ -102,6 +102,84 @@
     return 'neutral';
   }
 
+  // --- markdown in bubbles ---------------------------------------------------
+  // Replies render as lightweight markdown: **bold**, *italic*, `inline code`.
+  // Fenced code blocks are deliberately NOT written into the bubble — the
+  // model is treated as writing them into a (future) editor, so the bubble
+  // shows a chip with a live line count instead (see TODO.md). Model output is
+  // never parsed as HTML: everything goes in as text nodes.
+
+  function renderMarkdownInto(el, md) {
+    el.replaceChildren(buildMarkdown(md));
+  }
+
+  // Splits text into prose and fenced-block parts. A fence that is still
+  // streaming (no closing ```) is surfaced with closed:false so the chip can
+  // show a "writing…" state.
+  function splitCode(md) {
+    const parts = [];
+    const re = /```([^\n`]*)\n?([\s\S]*?)(?:(```)|$)/g;
+    let last = 0, m;
+    while ((m = re.exec(md))) {
+      if (m.index > last) parts.push({ fenced: false, text: md.slice(last, m.index) });
+      if ((m[2] || '').trim()) {
+        parts.push({ fenced: true, lang: m[1].trim(), code: m[2], closed: !!m[3] });
+      }
+      last = re.lastIndex;
+    }
+    if (last < md.length) parts.push({ fenced: false, text: md.slice(last) });
+    return parts;
+  }
+
+  function buildMarkdown(md) {
+    const frag = document.createDocumentFragment();
+    for (const part of splitCode(md)) {
+      if (part.fenced) frag.append(buildCodeChip(part));
+      else frag.append(buildInline(part.text));
+    }
+    return frag;
+  }
+
+  function buildCodeChip(part) {
+    const lines = part.code.replace(/\n+$/, '').split('\n').length;
+    const chip = document.createElement('span');
+    chip.className = 'code-chip';
+    chip.textContent = part.closed
+      ? `⌘ ${part.lang ? part.lang + ' · ' : ''}${lines} lines — written to editor`
+      : `⌘ ${part.lang ? part.lang + ' · ' : ''}${lines} lines — writing…`;
+    chip.title = 'Code stays out of the chat — she keeps it for your editor (coming soon, see TODO.md)';
+    return chip;
+  }
+
+  // Inline pass: swaps **bold**, *italic* and `code` for elements; everything
+  // else (including newlines and lists) stays plain text and relies on the
+  // bubble's pre-wrap.
+  function buildInline(text) {
+    const frag = document.createDocumentFragment();
+    const re = /(\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`)/g;
+    let last = 0, m;
+    while ((m = re.exec(text))) {
+      if (m.index > last) frag.append(text.slice(last, m.index));
+      const tok = m[0];
+      if (tok.startsWith('**')) {
+        const b = document.createElement('strong');
+        b.textContent = tok.slice(2, -2);
+        frag.append(b);
+      } else if (tok.endsWith('`')) {
+        const c = document.createElement('code');
+        c.textContent = tok.slice(1, -1);
+        frag.append(c);
+      } else {
+        const e = document.createElement('em');
+        e.textContent = tok.slice(1, -1);
+        frag.append(e);
+      }
+      last = m.index + tok.length;
+    }
+    if (last < text.length) frag.append(text.slice(last));
+    return frag;
+  }
+
   // --- configuration state --------------------------------------------------
 
   function isConfigured(s) {
@@ -297,7 +375,7 @@
         setEmote(liveMood, true); // now she speaks, in the mood she picked
       }
       text += slice;
-      bubble.textContent = text;
+      renderMarkdownInto(bubble, text);
       scrollToBottom();
       drainTimer = requestAnimationFrame(pace);
       return;
