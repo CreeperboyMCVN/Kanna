@@ -85,7 +85,28 @@ function setupMenu() {
   Menu.setApplicationMenu(menu);
 }
 
-function createWindow() {
+// Restores a saved position only if the window would still sit fully on a
+// connected screen — unplugged monitors must not strand her offscreen.
+// { x: null } means "let the OS center it".
+function sanePosition(saved) {
+  const W = 340;
+  const H = 560;
+  const x = Number(saved?.x);
+  const y = Number(saved?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return { x: null, y: null };
+  const { screen } = require('electron');
+  for (const d of screen.getAllDisplays()) {
+    const a = d.workArea;
+    if (x >= a.x && x + W <= a.x + a.width && y >= a.y && y + H <= a.y + a.height) {
+      return { x, y };
+    }
+  }
+  return { x: null, y: null };
+}
+
+async function createWindow() {
+  const pos = sanePosition((await settings.getSettings()).window);
+
   win = new BrowserWindow({
     width: 340,
     height: 560,
@@ -96,6 +117,8 @@ function createWindow() {
     backgroundColor: '#00000000',
     autoHideMenuBar: true,
     icon: kannaIconPath(),
+    // Saved position wins when sane; otherwise the OS decides.
+    ...(Number.isFinite(pos.x) && Number.isFinite(pos.y) ? { x: pos.x, y: pos.y } : {}),
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'preload.js'),
       contextIsolation: true,
@@ -123,10 +146,27 @@ function createWindow() {
 
   win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
 
+  // Persist where she ends up — debounced so a drag writes once, and a
+  // final flush on close so a quick "drag then hide" keeps too.
+  let moveTimer = null;
+  const savePosition = () => {
+    clearTimeout(moveTimer);
+    moveTimer = null;
+    if (!win || win.isDestroyed() || isQuitting) return;
+    const [x, y] = win.getPosition();
+    settings.save({ window: { x, y } })
+      .catch((err) => console.log('[window]', 'position save failed:', err?.message || err));
+  };
+  win.on('moved', () => {
+    clearTimeout(moveTimer);
+    moveTimer = setTimeout(savePosition, 500);
+  });
+
   // The ✕ button hides her to the tray instead of exiting — she keeps
   // living there until the tray menu's Quit (or the summon hotkey).
   win.on('close', (event) => {
     if (!isQuitting) {
+      savePosition();
       event.preventDefault();
       win.hide();
     }
@@ -171,7 +211,7 @@ app.whenReady().then(() => {
   ipcMain.on('win:close', () => win?.close());
 
   setupMenu();
-  createWindow();
+  await createWindow();
   setupTray();
   setupSummonHotkey();
 

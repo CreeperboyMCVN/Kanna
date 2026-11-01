@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS = {
   gemini: { apiKey: '', model: 'gemini-2.5-flash' },
   custom: { apiKey: '', model: '', baseUrl: 'https://api.openai.com/v1' },
   opencode: { apiKey: '', model: 'glm-5.3-flash-free' },
+  window: { x: null, y: null },
 };
 
 // Where API keys live in the settings shape.
