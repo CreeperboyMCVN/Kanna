@@ -314,7 +314,9 @@
       bubble.classList.remove('typing');
       bubble.textContent = `⚠ ${pickErrorMessage(err)}`;
       bubble.classList.add('error');
-      finalize();
+      // Something went wrong — she reacts to the glitch, not to whatever
+      // mood the half-typed reply happened to carry.
+      finalize('dizzy');
     }
   }
 
@@ -385,7 +387,7 @@
     if (finishing) finalize();
   }
 
-  function finalize() {
+  function finalize(moodOverride) {
     if (!busy) return;
     busy = false;
     drainTimer = null;
@@ -393,7 +395,8 @@
     sendBtn.classList.remove('stop');
     sendBtn.title = 'Send (Enter)';
     bubble = null;
-    if (text) moodFlash(liveMood !== 'neutral' ? liveMood : pickEmotion(text), liveHold);
+    if (moodOverride) moodFlash(moodOverride, false);
+    else if (text) moodFlash(liveMood !== 'neutral' ? liveMood : pickEmotion(text), liveHold);
     else setEmote('neutral', false);
     scrollToBottom();
   }
