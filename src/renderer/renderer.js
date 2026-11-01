@@ -190,8 +190,8 @@
   }
 
   // — Typing feel. Tune ONLY these two numbers: —
-  const TYPE_CPS = 45;        // characters per second at a comfortable pace
-  const CATCHUP_MAX = 600;    // cps cap when a huge backlog arrives (fast models)
+  const TYPE_CPS = 5;        // characters per second at a comfortable pace
+  const CATCHUP_MAX = 100;    // cps cap when a huge backlog arrives (fast models)
   // The effective speed is TYPE_CPS until the backlog grows, then it rises
   // (one backlog char ≈ one cps) so the queue never lags more than ~1–2s.
 

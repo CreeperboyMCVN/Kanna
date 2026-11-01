@@ -11,10 +11,11 @@ function abortActive() {
 // Streams one assistant reply. Emits ('chat:chunk', textDiff) to the renderer
 // as tokens arrive and resolves to { stopped, text } at the end. Throws on
 // hard errors (bad key, bad model, network) — the renderer shows the message.
-async function runChat(messages, emit) {
+async function runChat(messages, emit, system, opts = {}) {
+  const { registerInActive = true } = opts;
   const settings = getSettings();
   const controller = new AbortController();
-  active = { controller };
+  if (registerInActive) active = { controller };
 
   let text = '';
   const push = (chunk) => {
@@ -23,20 +24,37 @@ async function runChat(messages, emit) {
   };
 
   try {
+    // Explicit system string wins (memory extraction uses this); otherwise
+    // compose the persona with the long-term memory block.
+    const systemPrompt = system !== undefined
+      ? system
+      : composeChatSystem(settings);
+
     if (settings.provider === 'anthropic') {
-      await streamAnthropic(settings, messages, push, controller.signal);
+      await streamAnthropic(settings, messages, push, controller.signal, systemPrompt);
     } else if (settings.provider === 'gemini') {
-      await streamGemini(settings, messages, push, controller.signal);
+      await streamGemini(settings, messages, push, controller.signal, systemPrompt);
     } else {
-      await streamOpenAI(settings, messages, push, controller.signal);
+      await streamOpenAI(settings, messages, push, controller.signal, systemPrompt);
     }
     return { stopped: false, text };
   } catch (err) {
     if (isAbort(err)) return { stopped: true, text };
     throw err;
   } finally {
-    active = null;
+    if (registerInActive) active = null;
   }
+}
+
+// Persona + current memory, injected into every chat request.
+function composeChatSystem(settings) {
+  const persona = settings.persona || DEFAULT_PERSONA;
+  // Lazy require — memory.js pulls ai.js in (see note there).
+  const memory = require('./memory');
+  const block = memory.renderForPrompt();
+  return block
+    ? `${persona}\n\nLong-term memory about the user:\n${block}`
+    : persona;
 }
 
 function isAbort(err) {
@@ -45,7 +63,7 @@ function isAbort(err) {
 
 // --- provider adapters -----------------------------------------------------
 
-async function streamOpenAI(settings, messages, push, signal) {
+async function streamOpenAI(settings, messages, push, signal, systemPrompt) {
   const custom = settings.provider === 'custom';
   const conf = custom ? settings.custom : settings.openai;
   const label = custom ? 'Custom provider' : 'OpenAI';
@@ -64,7 +82,7 @@ async function streamOpenAI(settings, messages, push, signal) {
     model: conf.model,
     // No max_tokens/temperature here: newer OpenAI models and many
     // OpenAI-compatible servers reject the legacy parameters.
-    messages: [{ role: 'system', content: settings.persona || DEFAULT_PERSONA }, ...normalize(messages)],
+    messages: [{ role: 'system', content: systemPrompt }, ...normalize(messages)],
   }, signal, label);
 
   const ct = res.headers.get('content-type') || '';
@@ -85,7 +103,7 @@ async function streamOpenAI(settings, messages, push, signal) {
   });
 }
 
-async function streamAnthropic(settings, messages, push, signal) {
+async function streamAnthropic(settings, messages, push, signal, systemPrompt) {
   if (!settings.anthropic.apiKey) throw new Error('Anthropic needs an API key — add one in Settings.');
   if (!settings.anthropic.model) throw new Error('Anthropic needs a model name — set one in Settings.');
 
@@ -97,7 +115,7 @@ async function streamAnthropic(settings, messages, push, signal) {
     max_tokens: 1024,
     temperature: 0.8,
     model: settings.anthropic.model,
-    system: settings.persona || DEFAULT_PERSONA,
+    system: systemPrompt,
     messages: normalize(messages),
   }, signal, 'Anthropic');
 
@@ -109,7 +127,7 @@ async function streamAnthropic(settings, messages, push, signal) {
   });
 }
 
-async function streamGemini(settings, messages, push, signal) {
+async function streamGemini(settings, messages, push, signal, systemPrompt) {
   if (!settings.gemini.apiKey) throw new Error('Gemini needs an API key — add one in Settings.');
   if (!settings.gemini.model) throw new Error('Gemini needs a model name — set one in Settings.');
 
@@ -121,7 +139,7 @@ async function streamGemini(settings, messages, push, signal) {
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
     })),
-    systemInstruction: { parts: [{ text: settings.persona || DEFAULT_PERSONA }] },
+    systemInstruction: { parts: [{ text: systemPrompt }] },
     generationConfig: { temperature: 0.8, maxOutputTokens: 1024 },
   }, signal, 'Gemini');
 

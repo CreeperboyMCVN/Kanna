@@ -6,6 +6,14 @@ const path = require('node:path');
 const settings = require('./settings');
 const ai = require('./ai');
 
+function lastUserText(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'user') return String(messages[i]?.content || '');
+  }
+  return '';
+}
+const memory = require('./memory');
+
 let win = null;
 
 function toggleDevTools() {
@@ -87,6 +95,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('settings:save', (_e, patch) => settings.save(patch));
 
+  ipcMain.handle('memory:get', () => memory.load());
+  ipcMain.handle('memory:remove', (_e, key) => memory.removeEntry(String(key || '')));
+  ipcMain.handle('memory:clear', () => memory.clearAll());
+
   ipcMain.handle('chat:send', (event, messages) => {
     const emit = (type, payload) => {
       try {
@@ -95,7 +107,12 @@ app.whenReady().then(() => {
         // window gone mid-stream — nothing to do
       }
     };
-    return ai.runChat(messages, emit);
+    return ai.runChat(messages, emit).then((result) => {
+      // Let the model decide, in the background, whether this turn taught
+      // her something durable. Never blocks or fails the chat itself.
+      if (!result.stopped) memory.scheduleRemember(lastUserText(messages), result.text);
+      return result;
+    });
   });
 
   ipcMain.on('chat:stop', () => ai.abortActive());

@@ -50,6 +50,7 @@
       drawer.classList.add('open');
       scrim.classList.remove('hidden');
       els.key.focus();
+      loadMemory();
     });
   }
 
@@ -61,6 +62,55 @@
   function isOpen() {
     return drawer.classList.contains('open');
   }
+
+  // --- memory panel (independent of the Save button) ---------------------------
+
+  async function loadMemory() {
+    const data = await window.kanna.getMemory();
+    const list = document.getElementById('memory-list');
+    list.textContent = '';
+
+    if (!data.entries.length) {
+      const empty = document.createElement('p');
+      empty.className = 'memory-empty';
+      empty.textContent = 'Nothing remembered yet — facts appear here when a chat teaches her something durable.';
+      list.append(empty);
+      return;
+    }
+
+    for (const entry of data.entries) {
+      const row = document.createElement('div');
+      row.className = 'memory-row';
+
+      const key = document.createElement('span');
+      key.className = 'memory-key';
+      key.textContent = entry.key;
+
+      const value = document.createElement('span');
+      value.className = 'memory-val';
+      value.textContent = entry.value;
+
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'memory-x';
+      x.title = 'Forget this';
+      x.textContent = '×';
+      x.addEventListener('click', async () => {
+        await window.kanna.removeMemory(entry.key);
+        await loadMemory();
+      });
+
+      row.append(key, value, x);
+      list.append(row);
+    }
+  }
+
+  document.getElementById('btn-forget').addEventListener('click', async () => {
+    if (!confirm('Forget everything Kanna remembers about you?')) return;
+    await window.kanna.clearMemory();
+    await loadMemory();
+    window.dispatchEvent(new CustomEvent('kanna:toast', { detail: 'Memory cleared' }));
+  });
 
   function render() {
     const p = draft.provider;

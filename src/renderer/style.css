@@ -521,6 +521,78 @@ header {
   transform: translateX(-50%) translateY(0);
 }
 
+/* --- memory panel (additive; part of the settings drawer) ---------------------- */
+
+.memory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 170px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+
+.memory-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+}
+
+.memory-key {
+  flex: none;
+  max-width: 38%;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.memory-val {
+  flex: 1;
+  overflow-wrap: anywhere;
+  color: var(--ink-soft);
+}
+
+.memory-x {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.memory-x:hover { background: var(--glass-strong); color: var(--ink); }
+
+.memory-empty {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+.ghost-btn {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 128, 149, 0.35);
+  border-radius: 12px;
+  background: transparent;
+  color: #ff8095;
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ghost-btn:hover { background: var(--danger-soft); }
+
 /* --- borderless window chrome -------------------------------------------------
    Appended so the header can drag the frameless window while buttons stay
    clickable. Visual styles of existing rules above are untouched. */
