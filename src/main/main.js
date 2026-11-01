@@ -90,7 +90,7 @@ function setupMenu() {
 // { x: null } means "let the OS center it".
 function sanePosition(saved) {
   const W = 340;
-  const H = 560;
+  const H = 400;
   const x = Number(saved?.x);
   const y = Number(saved?.y);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return { x: null, y: null };
@@ -109,7 +109,7 @@ async function createWindow() {
 
   win = new BrowserWindow({
     width: 340,
-    height: 560,
+    height: 400,
     resizable: false,
     title: 'Kanna',
     frame: false,
