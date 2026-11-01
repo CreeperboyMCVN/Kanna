@@ -241,6 +241,7 @@
 
   function maybeSpeak() {
     if (!shouldSpeak || tts?.muted || tts?.provider !== 'builtin') return;
+    if (speechBusy) return;
     if (typeof speechSynthesis === 'undefined') return;
     const full = textForSpeech(text);
     if (full.length <= spokenIndex) return;
