@@ -15,18 +15,19 @@ Backlog of things not built yet. Pick from the top when starting something new.
 
 ## Next candidates
 
-- [ ] **Installer sanity check** — `npm run dist` has never been run; the
-  Windows target needs a real `.ico` (can generate from the happy emote),
-  then verify the packaged app runs from `dist/`.
-- [ ] **TTS — she speaks her replies aloud** *(after the first `npm run dist`)* —
-  voice selection: built-in Chromium `speechSynthesis` (offline OS voices,
-  zero deps) vs a cloud/engine voice; tie rate & pitch to the reply's
-  `speed`/mood fields; mute toggle in the header; keep her from talking over
-  the typewriter (speak after each visible sentence, or after finalize).
-- [ ] **STT — push-to-talk** *(after the first `npm run dist`)* — a mic button
-  (or hotkey hold) recording to a file, transcribed via a local engine
-  (whisper.cpp / Vosk) or the provider's audio API, then injected into the
-  input as if typed. Pick one engine; config lands in the Brain tab.
+- [x] **Installer sanity check** — `npm run dist` now runs end to end; a
+  512×512 icon was generated from the happy emote (`assets/icon.png`,
+  converted to .ico by electron-builder); the packaged app launches from
+  `dist/win-unpacked/Kanna.exe` and the installer is `dist/Kanna Setup 0.1.0.exe`.
+- [ ] **TTS — she speaks her replies aloud** — voice selection: built-in
+  Chromium `speechSynthesis` (offline OS voices, zero deps) vs a cloud/engine
+  voice; tie rate & pitch to the reply's `speed`/mood fields; mute toggle in
+  the header; keep her from talking over the typewriter (speak after each
+  visible sentence, or after finalize).
+- [ ] **STT — push-to-talk** — a mic button (or hotkey hold) recording to a
+  file, transcribed via a local engine (whisper.cpp / Vosk) or the provider's
+  audio API, then injected into the input as if typed. Pick one engine; config
+  lands in the Brain tab.
 
 ## Protocol / hardening ideas
 
