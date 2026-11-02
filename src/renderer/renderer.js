@@ -702,23 +702,43 @@
       sttContext = new AudioContext({ sampleRate: 16000 });
       await sttContext.resume();
       sttSource = sttContext.createMediaStreamSource(stream);
-      sttProcessor = sttContext.createScriptProcessor(4096, 1, 1);
-      sttProcessor.onaudioprocess = (event) => {
+
+      const workletCode = `
+        class PcmWorklet extends AudioWorkletProcessor {
+          process(inputs) {
+            const input = inputs[0] && inputs[0][0];
+            if (input && input.length) {
+              const out = new Int16Array(input.length);
+              for (let i = 0; i < input.length; i++) {
+                const s = Math.max(-1, Math.min(1, input[i]));
+                out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+              }
+              this.port.postMessage(out.buffer, [out.buffer]);
+            }
+            return true;
+          }
+        }
+        registerProcessor('pcm-worklet', PcmWorklet);
+      `;
+      const workletUrl = URL.createObjectURL(new Blob([workletCode], { type: 'application/javascript' }));
+      await sttContext.audioWorklet.addModule(workletUrl);
+      URL.revokeObjectURL(workletUrl);
+
+      const gain = sttContext.createGain();
+      gain.gain.value = 0;
+      sttProcessor = new AudioWorkletNode(sttContext, 'pcm-worklet');
+      sttProcessor.port.onmessage = (event) => {
         if (!sttRecording) return;
-        const input = event.inputBuffer.getChannelData(0);
-        const pcm = floatToPcm16(input);
-        window.kanna.sttAudio(pcm.buffer).then((res) => {
+        window.kanna.sttAudio(event.data).then((res) => {
           if (res && res.partial && res.partial !== sttPartial) {
             sttPartial = res.partial;
             toast(`Heard: ${sttPartial}`);
           }
         }).catch(() => { /* ignore transient chunks */ });
-        // Keep the processor connected without echoing captured audio.
-        const zero = event.outputBuffer.getChannelData(0);
-        for (let i = 0; i < zero.length; i++) zero[i] = 0;
       };
       sttSource.connect(sttProcessor);
-      sttProcessor.connect(sttContext.destination);
+      sttProcessor.connect(gain);
+      gain.connect(sttContext.destination);
 
       const started = await window.kanna.sttStart();
       if (!started || !started.ok) throw new Error('STT server failed to start');

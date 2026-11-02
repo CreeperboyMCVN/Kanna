@@ -64,6 +64,7 @@ async function ensureSttServer(keys = {}) {
       });
       child.on('error', (err) => { clearTimeout(timer); reject(err); });
       child.on('exit', (code) => {
+  console.log('[stt server] exited', code, stderr.trim().slice(0, 500));
         if (!sttServer.url) {
           clearTimeout(timer);
           reject(new Error(`STT server exited (${code}): ${stderr.trim()}`));
@@ -101,14 +102,19 @@ async function sttStart(keys = {}) {
 async function sttAudio(pcmBuffer) {
   if (!currentSession || !sttServer.url) return { partial: '' };
   const body = Buffer.isBuffer(pcmBuffer) ? pcmBuffer : Buffer.from(pcmBuffer);
-  const response = await fetch(`${sttServer.url}/audio?session=${encodeURIComponent(currentSession)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/octet-stream' },
-    body,
-  });
-  if (!response.ok) return { partial: '' };
-  const data = await response.json();
-  return { partial: data.partial || '' };
+  try {
+    const response = await fetch(`${sttServer.url}/audio?session=${encodeURIComponent(currentSession)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body,
+    });
+    if (!response.ok) return { partial: '' };
+    const data = await response.json();
+    return { partial: data.partial || '' };
+  } catch (err) {
+    console.log('[stt audio] failed:', err?.message || err);
+    return { partial: '' };
+  }
 }
 
 async function sttFinish() {
