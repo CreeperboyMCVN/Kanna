@@ -447,7 +447,7 @@
           // rate slider too, so they stay in sync).
           // Tune the base `10` here — lower = slower text (voice scales with the
           // rate slider too, so they stay in sync).
-          targetCps = Math.round(10 * rate);
+          targetCps = Math.round(14 * rate);
           speechPhaseActive = true;
         } else {
           speechPhaseActive = false;
