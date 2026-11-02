@@ -38,6 +38,10 @@ const DEFAULT_SETTINGS = {
     azureKey: '',
     azureRegion: '',
     googleKey: '',
+    // Piper (local, offline) settings.
+    piperCommand: 'python',  // executable or 'python -m piper'
+    piperModel: '',           // model name (e.g. en_US-lessac-medium) or path to .onnx
+    piperDataDir: '',         // directory containing voice models (optional)
   },
 };
 

@@ -1,5 +1,10 @@
 'use strict';
 
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+
 // Third-party TTS providers for Kanna. All API calls happen in the main
 // process so keys (encrypted at rest in settings.json) never leave it.
 // Each speak() returns { audioDataUrl, durationMs } — a data: URL the
@@ -155,9 +160,59 @@ async function ttsGoogle({ text, voice, rate, pitch, keys = {} }) {
   };
 }
 
+// --- Piper (local, offline) --------------------------------------------------
+
+async function ttsPiper({ text, rate = 1, keys = {} }) {
+  const command = keys.piperCommand || 'python';
+  const model = keys.piperModel || '';
+  const dataDir = keys.piperDataDir || '';
+
+  if (!model) throw new Error('Piper model not set (e.g. en_US-lessac-medium)');
+
+  const tmpDir = os.tmpdir();
+  const outFile = path.join(tmpDir, `kanna-piper-${Date.now()}.wav`);
+
+  // Build args. Support both `python -m piper` and a bare piper binary.
+  const args = [];
+  let cmd = command;
+  if (command === 'python' || command === 'python3') {
+    args.push('-m', 'piper');
+  }
+  args.push('-m', model);
+  if (dataDir) args.push('--data-dir', dataDir);
+  args.push('-f', outFile);
+  args.push('--', text);
+
+  await new Promise((resolve, reject) => {
+    const proc = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+    let stderr = '';
+    proc.stderr.on('data', (d) => { stderr += d.toString(); });
+    proc.on('error', (err) => reject(new Error(`Piper spawn failed: ${err.message}`)));
+    proc.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`Piper exited ${code}: ${stderr.trim()}`));
+      } else {
+        resolve();
+      }
+    });
+  });
+
+  if (!fs.existsSync(outFile)) {
+    throw new Error('Piper did not produce output file');
+  }
+  const buf = fs.readFileSync(outFile);
+  try { fs.unlinkSync(outFile); } catch { /* ignore */ }
+
+  return {
+    audioDataUrl: `data:audio/wav;base64,${buf.toString('base64')}`,
+    durationMs: estimateDurationMs(text, rate),
+  };
+}
+
 // --- dispatch ----------------------------------------------------------------
 
 const PROVIDERS = {
+  piper: ttsPiper,
   elevenlabs: ttsElevenLabs,
   openai: ttsOpenAI,
   azure: ttsAzure,

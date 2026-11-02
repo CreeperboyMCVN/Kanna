@@ -120,6 +120,24 @@
           <input id="tts-google-key" type="password" spellcheck="false" placeholder="AI…">
         </label>
 
+        <div id="field-tts-piper" hidden>
+          <label class="field">
+            <span>Piper command</span>
+            <input id="tts-piper-command" type="text" spellcheck="false" placeholder="python">
+            <p class="hint">Executable to run Piper (e.g. `python` or path to piper binary).</p>
+          </label>
+          <label class="field">
+            <span>Piper model</span>
+            <input id="tts-piper-model" type="text" spellcheck="false" placeholder="en_US-lessac-medium">
+            <p class="hint">Voice model name or path to .onnx file.</p>
+          </label>
+          <label class="field">
+            <span>Piper data dir</span>
+            <input id="tts-piper-datadir" type="text" spellcheck="false" placeholder="(optional)">
+            <p class="hint">Directory containing voice models. Leave empty for current dir.</p>
+          </label>
+        </div>
+
         <label class="field">
           <span>Rate</span>
           <input id="tts-rate" type="range" min="0.5" max="2" step="0.1" value="1">
@@ -136,7 +154,7 @@
           <span><input id="tts-muted" type="checkbox"> Mute TTS</span>
         </label>
 
-        <p class="hint">Built-in uses your OS voices (speechSynthesis). ElevenLabs, OpenAI TTS, Azure Speech and Google Cloud TTS need API keys (saved encrypted). Piper coming soon.</p>
+        <p class="hint">Built-in uses your OS voices. ElevenLabs, OpenAI TTS, Azure Speech and Google Cloud TTS need API keys (saved encrypted). Piper needs Python + piper-tts installed locally.</p>
       </div>
 
       <button type="submit" class="primary">Save</button>

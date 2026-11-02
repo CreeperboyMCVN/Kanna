@@ -28,6 +28,9 @@
     ttsAzureKey: $('#tts-azure-key'),
     ttsAzureRegion: $('#tts-azure-region'),
     ttsGoogleKey: $('#tts-google-key'),
+    ttsPiperCommand: $('#tts-piper-command'),
+    ttsPiperModel: $('#tts-piper-model'),
+    ttsPiperDatadir: $('#tts-piper-datadir'),
   };
 
   const PROVIDER_META = {
@@ -199,7 +202,7 @@
     els.eye.textContent = '👁';
 
     // --- TTS ---
-    const t = draft.tts || (draft.tts = { provider:'builtin', voice:'', rate:1, pitch:1, muted:false, openaiKey:'', elevenlabsKey:'', azureKey:'', azureRegion:'', googleKey:'' });
+    const t = draft.tts || (draft.tts = { provider:'builtin', voice:'', rate:1, pitch:1, muted:false, openaiKey:'', elevenlabsKey:'', azureKey:'', azureRegion:'', googleKey:'', piperCommand:'python', piperModel:'', piperDataDir:'' });
     els.ttsProvider.value = t.provider || 'builtin';
     els.ttsRate.value = t.rate ?? 1;
     els.ttsRateVal.textContent = Number(t.rate ?? 1).toFixed(1);
@@ -211,10 +214,13 @@
     els.ttsAzureKey.value = t.azureKey || '';
     els.ttsAzureRegion.value = t.azureRegion || '';
     els.ttsGoogleKey.value = t.googleKey || '';
+    els.ttsPiperCommand.value = t.piperCommand || 'python';
+    els.ttsPiperModel.value = t.piperModel || '';
+    els.ttsPiperDatadir.value = t.piperDataDir || '';
 
     const ttsHints = {
       builtin: 'Uses your OS voices (speechSynthesis). Offline, no setup.',
-      piper: 'Coming soon — local high-quality offline voice (downloads a model).',
+      piper: 'Local offline TTS (Python piper-tts). Needs model downloaded.',
       elevenlabs: 'Needs an ElevenLabs API key. High-quality multilingual voices.',
       openai: 'Uses your OpenAI API key (tts-1 model). Cloud voices.',
       azure: 'Needs an Azure Speech key + region. Microsoft neural voices.',
@@ -222,11 +228,12 @@
     };
     const hintEl = document.getElementById('tts-provider-hint');
     if (hintEl) hintEl.textContent = ttsHints[els.ttsProvider.value] || '';
-    document.getElementById('field-tts-openai-key').hidden = p !== 'openai';
-    document.getElementById('field-tts-elevenlabs-key').hidden = p !== 'elevenlabs';
-    document.getElementById('field-tts-azure-key').hidden = p !== 'azure';
-    document.getElementById('field-tts-azure-region').hidden = p !== 'azure';
-    document.getElementById('field-tts-google-key').hidden = p !== 'google';
+    document.getElementById('field-tts-openai-key').hidden = els.ttsProvider.value !== 'openai';
+    document.getElementById('field-tts-elevenlabs-key').hidden = els.ttsProvider.value !== 'elevenlabs';
+    document.getElementById('field-tts-azure-key').hidden = els.ttsProvider.value !== 'azure';
+    document.getElementById('field-tts-azure-region').hidden = els.ttsProvider.value !== 'azure';
+    document.getElementById('field-tts-google-key').hidden = els.ttsProvider.value !== 'google';
+    document.getElementById('field-tts-piper').hidden = els.ttsProvider.value !== 'piper';
 
   }
 
@@ -258,6 +265,9 @@
         azureKey: draft.tts?.azureKey || '',
         azureRegion: draft.tts?.azureRegion || '',
         googleKey: draft.tts?.googleKey || '',
+        piperCommand: draft.tts?.piperCommand || 'python',
+        piperModel: draft.tts?.piperModel || '',
+        piperDataDir: draft.tts?.piperDataDir || '',
       },
     });
 
@@ -301,7 +311,7 @@
     document.getElementById('field-tts-google-key').hidden = els.ttsProvider.value !== 'google';
     const ttsHints = {
       builtin: 'Uses your OS voices (speechSynthesis). Offline, no setup.',
-      piper: 'Coming soon — local high-quality offline voice (downloads a model).',
+      piper: 'Local offline TTS (Python piper-tts). Needs model downloaded.',
       elevenlabs: 'Needs an ElevenLabs API key. High-quality multilingual voices.',
       openai: 'Uses your OpenAI API key (tts-1 model). Cloud voices.',
       azure: 'Needs an Azure Speech key + region. Microsoft neural voices.',
@@ -340,6 +350,18 @@
     [els.ttsAzureRegion, 'azureRegion'],
     [els.ttsGoogleKey, 'googleKey'],
   ];
+
+  // Piper fields
+  for (const [el, field] of [
+    [els.ttsPiperCommand, 'piperCommand'],
+    [els.ttsPiperModel, 'piperModel'],
+    [els.ttsPiperDatadir, 'piperDataDir'],
+  ]) {
+    el.addEventListener('input', () => {
+      if (!draft.tts) draft.tts = {};
+      draft.tts[field] = el.value;
+    });
+  }
   for (const [el, field] of ttsKeyMap) {
     el.addEventListener('input', () => {
       if (!draft.tts) draft.tts = {};
