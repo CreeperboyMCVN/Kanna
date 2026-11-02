@@ -182,7 +182,17 @@ async function createWindow() {
 app.whenReady().then(async () => {
   ipcMain.handle('settings:get', () => settings.getSettings());
 
-  ipcMain.handle('settings:save', (_e, patch) => settings.save(patch));
+  ipcMain.handle('settings:save', async (_e, patch) => {
+    const saved = await settings.save(patch);
+    if (saved?.tts?.provider === 'piper') {
+      tts.startPiperServer({
+        piperCommand: saved.tts.piperCommand,
+        piperModel: saved.tts.piperModel,
+        piperDataDir: saved.tts.piperDataDir,
+      }).catch((err) => console.log('[tts piper]', 'server failed to start:', err?.message || err));
+    }
+    return saved;
+  });
   ipcMain.handle('models:list', (_e, provider) => ai.listModels(provider));
 
   ipcMain.handle('tts:speak', async (_e, payload) => tts.speak(payload));
@@ -216,6 +226,18 @@ app.whenReady().then(async () => {
 
   setupMenu();
   await createWindow();
+  try {
+    const initial = await settings.getSettings();
+    if (initial?.tts?.provider === 'piper') {
+      tts.startPiperServer({
+        piperCommand: initial.tts.piperCommand,
+        piperModel: initial.tts.piperModel,
+        piperDataDir: initial.tts.piperDataDir,
+      }).catch((err) => console.log('[tts piper]', 'server failed to start:', err?.message || err));
+    }
+  } catch (err) {
+    console.log('[tts piper]', 'could not read settings:', err?.message || err);
+  }
   setupTray();
   setupSummonHotkey();
 
@@ -227,6 +249,7 @@ app.whenReady().then(async () => {
 app.on('before-quit', () => {
   isQuitting = true;
   ai.abortActive();
+  try { tts.stopPiperServer(); } catch { /* ignore */ }
 });
 
 app.on('will-quit', () => {

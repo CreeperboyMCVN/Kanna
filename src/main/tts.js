@@ -191,6 +191,18 @@ async function ttsPiper({ text, voice = '', rate = 1, keys = {} }) {
   // Piper multi-speaker models select a speaker with --speaker.
   const speaker = String(voice || '').trim();
 
+  // Prefer the long-lived Piper server (model loaded once); fall back to
+  // spawning Piper per utterance if the server cannot start.
+  try {
+    const serverResult = await speakWithPiperServer(text, voice, keys);
+    if (serverResult?.audioDataUrl) {
+      serverResult.durationMs = estimateDurationMs(text, rate);
+      return serverResult;
+    }
+  } catch (err) {
+    console.warn('[tts piper] server unavailable, falling back to CLI spawn:', err?.message || err);
+  }
+
   const tmpDir = os.tmpdir();
   const outFile = path.join(tmpDir, `kanna-piper-${Date.now()}.wav`);
 
@@ -209,7 +221,7 @@ async function ttsPiper({ text, voice = '', rate = 1, keys = {} }) {
   const cmd = cmdParts[0] || 'python';
   const implicitArgs = cmdParts.slice(1);
 
-  const base = path.basename(cmd).toLowerCase().replace(/\\.(exe|cmd|bat)$/i, '');
+  const base = path.basename(cmd).toLowerCase().replace(/\.(exe|cmd|bat)$/i, '');
   const isPython = ['python', 'python3', 'py'].includes(base);
 
   const args = [...implicitArgs];
@@ -264,4 +276,130 @@ async function speak({ text, provider, voice = '', rate = 1, pitch = 1, keys = {
   return await fn({ text, voice, rate, pitch, keys });
 }
 
-module.exports = { speak, estimateDurationMs };
+// --- Piper HTTP server --------------------------------------------------------
+// A long-lived Python process keeps the heavy ONNX model loaded between
+// utterances. Kanna talks to it over localhost instead of spawning Piper
+// from scratch for every bubble.
+
+let piperServer = { proc: null, url: null, starting: null };
+
+function resolvePythonExecutable(command) {
+  const first = String(command || 'python').trim().split(/\\s+/)[0];
+  const base = path.basename(first).toLowerCase().replace(/\.(exe|cmd|bat)$/i, '');
+  if (['python', 'python3', 'py'].includes(base)) return first;
+  return 'python';
+}
+
+function piperServerScriptPath() {
+  const candidates = [
+    path.join(process.resourcesPath || '', 'piper', 'piper_server.py'),
+    path.join(__dirname, '..', '..', 'resources', 'piper', 'piper_server.py'),
+  ];
+  return candidates.find((p) => p && fs.existsSync(p)) || '';
+}
+
+async function ensurePiperServer(keys = {}) {
+  if (piperServer.url) {
+    try {
+      const health = await fetch(piperServer.url + '/health');
+      if (health.ok) return piperServer.url;
+    } catch {
+      // stale/terminated; restart below
+    }
+    if (piperServer.proc) {
+      try { piperServer.proc.kill(); } catch { /* ignore */ }
+    }
+    piperServer = { proc: null, url: null, starting: null };
+  }
+  if (piperServer.starting) return await piperServer.starting;
+
+  const startPromise = (async () => {
+    const script = piperServerScriptPath();
+    if (!script) throw new Error('Piper server script is missing');
+
+    let model = String(keys.piperModel || '').trim();
+    if (!model) model = await resolveBundledPiperModel();
+    if (!model) throw new Error('Piper model not set or bundled');
+
+    const python = resolvePythonExecutable(keys.piperCommand);
+    const child = spawn(python, [script, '--model', model], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    piperServer.proc = child;
+    let stderr = '';
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+
+    const url = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('Piper server did not become ready in time'));
+      }, 180000);
+      let stdout = '';
+      child.stdout.on('data', (chunk) => {
+        stdout += chunk.toString();
+        const match = stdout.match(/READY\s+(http:\/\/[^\s]+)/);
+        if (match) {
+          clearTimeout(timer);
+          resolve(match[1]);
+        }
+      });
+      child.on('error', (err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+      child.on('exit', (code) => {
+        if (!piperServer.url) {
+          clearTimeout(timer);
+          reject(new Error(`Piper server exited (${code}): ${stderr.trim()}`));
+        }
+      });
+    });
+
+    piperServer.url = url;
+    child.on('exit', () => {
+      piperServer.proc = null;
+      piperServer.url = null;
+      piperServer.starting = null;
+    });
+    return url;
+  })();
+
+  piperServer.starting = startPromise;
+  try {
+    return await startPromise;
+  } finally {
+    if (piperServer.starting === startPromise) piperServer.starting = null;
+  }
+}
+
+function stopPiperServer() {
+  if (piperServer.proc) {
+    try { piperServer.proc.kill(); } catch { /* ignore */ }
+  }
+  piperServer = { proc: null, url: null, starting: null };
+}
+
+async function speakWithPiperServer(text, voice, keys) {
+  const url = await ensurePiperServer(keys);
+  const speaker = String(voice || '').trim();
+  const response = await fetch(url + '/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      speaker: speaker && /^\\d+$/.test(speaker) ? Number(speaker) : 0,
+    }),
+  });
+  if (!response.ok) {
+    let detail = '';
+    try { detail = (await response.json()).error || ''; } catch { /* ignore */ }
+    throw new Error(`Piper server failed (HTTP ${response.status})${detail ? ': ' + detail : ''}`);
+  }
+  const audio = Buffer.from(await response.arrayBuffer());
+  return {
+    audioDataUrl: `data:audio/wav;base64,${audio.toString('base64')}`,
+    durationMs: null,
+  };
+}
+
+module.exports = { speak, estimateDurationMs, ensurePiperServer, startPiperServer: ensurePiperServer, stopPiperServer };
