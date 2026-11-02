@@ -373,6 +373,38 @@
     draft.persona = els.persona.value;
   });
 
+  // --- Piper smoke test ------------------------------------------------------
+  const btnTestPiper = document.getElementById('btn-test-piper');
+  const piperStatus = document.getElementById('piper-test-status');
+  if (btnTestPiper) {
+    btnTestPiper.addEventListener('click', async () => {
+      btnTestPiper.disabled = true;
+      if (piperStatus) piperStatus.textContent = 'Testing…';
+      try {
+        const result = await window.kanna.ttsSpeak({
+          text: 'Piper check.',
+          provider: 'piper',
+          voice: els.ttsVoice.value || '',
+          rate: Number(els.ttsRate.value) || 1,
+          pitch: Number(els.ttsPitch.value) || 1,
+          keys: {
+            piperCommand: els.ttsPiperCommand.value || 'python',
+            piperModel: els.ttsPiperModel.value || '',
+            piperDataDir: els.ttsPiperDatadir.value || '',
+          },
+        });
+        if (piperStatus) piperStatus.textContent = result?.audioDataUrl
+          ? 'Piper works ✓'
+          : 'No audio returned';
+      } catch (err) {
+        const msg = (err?.message || 'Piper failed').replace(/^Error: /, '');
+        if (piperStatus) piperStatus.textContent = msg.slice(0, 90);
+      } finally {
+        btnTestPiper.disabled = false;
+      }
+    });
+  }
+
   els.eye.addEventListener('click', () => {
     const hidden = els.key.type === 'password';
     els.key.type = hidden ? 'text' : 'password';

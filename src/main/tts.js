@@ -172,10 +172,26 @@ async function ttsPiper({ text, rate = 1, keys = {} }) {
   const tmpDir = os.tmpdir();
   const outFile = path.join(tmpDir, `kanna-piper-${Date.now()}.wav`);
 
-  // Build args. Support both `python -m piper` and a bare piper binary.
-  const args = [];
-  let cmd = command;
-  if (command === 'python' || command === 'python3') {
+  // Prefer a Python/Piper environment bundled alongside the installed app when
+  // present (see TODO packaging notes); otherwise honor the configured command.
+  let resolvedCommand = String(command || '').trim();
+  const bundledPython = path.join(process.resourcesPath || '', 'piper', 'python.exe');
+  if ((!resolvedCommand || resolvedCommand.toLowerCase() === 'python') && fs.existsSync(bundledPython)) {
+    resolvedCommand = bundledPython;
+  }
+
+  // Support both a bare/configured command (`python`, `py`, a full path, or
+  // `python -m piper`) and a piper binary. Extra tokens in piperCommand
+  // (e.g. "python -m piper") are prepended to Piper's own arguments.
+  const cmdParts = resolvedCommand.split(/\\s+/).filter(Boolean);
+  const cmd = cmdParts[0] || 'python';
+  const implicitArgs = cmdParts.slice(1);
+
+  const base = path.basename(cmd).toLowerCase().replace(/\\.(exe|cmd|bat)$/i, '');
+  const isPython = ['python', 'python3', 'py'].includes(base);
+
+  const args = [...implicitArgs];
+  if (implicitArgs.length === 0 && isPython) {
     args.push('-m', 'piper');
   }
   args.push('-m', model);
