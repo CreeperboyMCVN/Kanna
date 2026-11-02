@@ -290,6 +290,14 @@ function resolvePythonExecutable(command) {
   return 'python';
 }
 
+function resolveBundledPiperServerExe() {
+  const candidates = [
+    path.join(process.resourcesPath || '', 'piper', 'kanna-piper-server.exe'),
+    path.join(__dirname, '..', '..', 'resources', 'piper', 'kanna-piper-server.exe'),
+  ];
+  return candidates.find((p) => p && fs.existsSync(p)) || '';
+}
+
 function piperServerScriptPath() {
   const candidates = [
     path.join(process.resourcesPath || '', 'piper', 'piper_server.py'),
@@ -321,10 +329,11 @@ async function ensurePiperServer(keys = {}) {
     if (!model) model = await resolveBundledPiperModel();
     if (!model) throw new Error('Piper model not set or bundled');
 
+    const exe = resolveBundledPiperServerExe();
     const python = resolvePythonExecutable(keys.piperCommand);
-    const child = spawn(python, [script, '--model', model], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const child = exe
+      ? spawn(exe, ['--model', model], { stdio: ['ignore', 'pipe', 'pipe'] })
+      : spawn(python, [script, '--model', model], { stdio: ['ignore', 'pipe', 'pipe'] });
 
     piperServer.proc = child;
     let stderr = '';
