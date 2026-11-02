@@ -19,4 +19,8 @@ contextBridge.exposeInMainWorld('kanna', {
   },
   minimize: () => ipcRenderer.send('win:min'),
   close: () => ipcRenderer.send('win:close'),
+
+  // TTS: ask the main process to synthesize audio (keys stay in main process).
+  ttsSpeak: (payload) => ipcRenderer.invoke('tts:speak', payload),
+  ttsCancel: () => ipcRenderer.send('tts:cancel'),
 });

@@ -193,10 +193,18 @@
     return frag;
   }
 
-  // --- TTS (built-in speechSynthesis) ---------------------------------------
+  // --- TTS (built-in speechSynthesis + cloud providers) ----------------------
+
+  let audioEl = null;       // HTMLAudioElement for cloud-provider TTS
 
   function cancelSpeech() {
     try { if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel(); } catch { /* ignore */ }
+    if (audioEl) {
+      audioEl.pause();
+      audioEl.src = '';
+      audioEl.remove();
+      audioEl = null;
+    }
   }
 
   function updateMuteButton() {
@@ -208,22 +216,78 @@
     btn.setAttribute('aria-pressed', muted ? 'true' : 'false');
   }
 
-  function speakChunk(text) {
-    if (!text || tts?.muted) return;
-    if (!tts || tts.provider !== 'builtin') return; // other providers: TODO
-    if (typeof speechSynthesis === 'undefined') return;
-    const u = new SpeechSynthesisUtterance(text);
-    const voices = speechSynthesis.getVoices();
-    const chosen = voices.find((v) => v.name === tts.voice);
-    if (chosen) u.voice = chosen;
-    const rate = Number(tts.rate);
-    const pitch = Number(tts.pitch);
-    u.rate = Number.isFinite(rate) ? Math.min(2, Math.max(0.5, rate)) : 1;
-    u.pitch = Number.isFinite(pitch) ? Math.min(2, Math.max(0.5, pitch)) : 1;
-    // mood-based pitch nudge
-    const moodPitch = { happy: 1.1, sad: 0.85, angry: 0.95, surprise: 1.05, shy: 0.9, strained: 0.9 };
-    if (moodPitch[liveMood]) u.pitch = Math.min(2, Math.max(0.5, u.pitch * moodPitch[liveMood]));
-    try { speechSynthesis.speak(u); } catch { /* ignore */ }
+  // Speak via built-in speechSynthesis. Returns a promise that resolves when
+  // the utterance ends (or immediately if unavailable/muted).
+  function speakBuiltin(text) {
+    return new Promise((resolve) => {
+      if (!text || tts?.muted) { resolve(); return; }
+      if (!tts || tts.provider !== 'builtin') { resolve(); return; }
+      if (typeof speechSynthesis === 'undefined') { resolve(); return; }
+      const u = new SpeechSynthesisUtterance(text);
+      const voices = speechSynthesis.getVoices();
+      const chosen = voices.find((v) => v.name === tts.voice);
+      if (chosen) u.voice = chosen;
+      const rate = Number(tts.rate);
+      const pitch = Number(tts.pitch);
+      u.rate = Number.isFinite(rate) ? Math.min(2, Math.max(0.5, rate)) : 1;
+      u.pitch = Number.isFinite(pitch) ? Math.min(2, Math.max(0.5, pitch)) : 1;
+      const moodPitch = { happy: 1.1, sad: 0.85, angry: 0.95, surprise: 1.05, shy: 0.9, strained: 0.9 };
+      if (moodPitch[liveMood]) u.pitch = Math.min(2, Math.max(0.5, u.pitch * moodPitch[liveMood]));
+      u.onend = u.onerror = () => resolve();
+      try { speechSynthesis.speak(u); } catch { resolve(); }
+    });
+  }
+
+  // Speak via a third-party provider (ElevenLabs, OpenAI TTS, Azure, Google).
+  // Returns { audioEl, durationMs } so the renderer can pace typing to match.
+  async function speakCloud(text) {
+    if (!text || tts?.muted) return null;
+    if (!tts || tts.provider === 'builtin') return null;
+    if (typeof window.kanna.ttsSpeak !== 'function') return null;
+
+    const keys = {
+      openaiKey: tts.openaiKey || '',
+      elevenlabsKey: tts.elevenlabsKey || '',
+      azureKey: tts.azureKey || '',
+      azureRegion: tts.azureRegion || '',
+      googleKey: tts.googleKey || '',
+    };
+    let result;
+    try {
+      result = await window.kanna.ttsSpeak({
+        text,
+        provider: tts.provider,
+        voice: tts.voice || '',
+        rate: Number(tts.rate) || 1,
+        pitch: Number(tts.pitch) || 1,
+        keys,
+      });
+    } catch (err) {
+      console.warn('[tts cloud]', err?.message || err);
+      return null;
+    }
+    if (!result?.audioDataUrl) return null;
+
+    audioEl = new Audio(result.audioDataUrl);
+    audioEl.play().catch(() => { /* autoplay may be blocked; ignore */ });
+    return { audioEl, durationMs: result.durationMs || 0 };
+  }
+
+  // Speak via the configured TTS provider. For builtin this starts speaking
+  // immediately; for cloud providers it synthesizes audio first.
+  // Returns { durationMs } for pacing the typewriter.
+  async function speakChunk(text) {
+    if (!text || tts?.muted) return { durationMs: 0 };
+    cancelSpeech(); // never overlap utterances
+
+    if (tts.provider === 'builtin') {
+      await speakBuiltin(text);
+      // Estimate builtin duration for pacing.
+      return { durationMs: estimateDurationMs(text, Number(tts.rate) || 1) };
+    }
+
+    const cloud = await speakCloud(text);
+    return cloud ? { durationMs: cloud.durationMs || 0 } : { durationMs: 0 };
   }
 
   function textForSpeech(md) {
@@ -232,6 +296,12 @@
     s = s.replace(/\*([^*]+)\*/g, '$1');
     s = s.replace(/`([^`]+)`/g, '$1');
     return s.trim();
+  }
+
+  function estimateDurationMs(text, rate) {
+    // ~13 chars/sec at normal pace, scaled by rate. Floor so short replies
+    // still get a minimum typing window.
+    return Math.max(600, Math.ceil((text.length / Math.max(1, 13 * rate)) * 1000));
   }
 
   function isConfigured(s) {
@@ -432,22 +502,20 @@
       const result = await window.kanna.sendChat(history.slice(-24));
       if (received) {
         history.push({ role: 'assistant', content: received });
-        // Reply fully received. Now generate the full TTS and pace the
-        // typewriter to the speech duration so text and voice finish together.
-        shouldSpeak = !tts?.muted && tts?.provider === 'builtin';
-        if (shouldSpeak && typeof speechSynthesis !== 'undefined') {
-          speakChunk(textForSpeech(received));
-        }
-        // Estimate how long the speech will take and type the whole reply
-        // over that window.
+        // Reply fully received. Generate the full TTS and pace the typewriter
+        // to the speech duration so text and voice finish together.
+        shouldSpeak = !tts?.muted;
+        let speechDurationMs = 0;
         if (shouldSpeak) {
-          const rate = Number(tts.rate) || 1;
+          const spoken = textForSpeech(received);
+          const result = await speakChunk(spoken);
+          speechDurationMs = result.durationMs || 0;
           // Type at the same speed the voice speaks so they finish together.
-          // Tune the base `10` here — lower = slower text (voice scales with the
-          // rate slider too, so they stay in sync).
-          // Tune the base `10` here — lower = slower text (voice scales with the
-          // rate slider too, so they stay in sync).
-          targetCps = Math.round(14 * rate);
+          // Tune the base `13` here — lower = slower text (voice scales with
+          // the rate slider too, so they stay in sync).
+          targetCps = speechDurationMs > 0
+            ? spoken.length / (speechDurationMs / 1000)
+            : Math.round(13 * (Number(tts.rate) || 1));
           speechPhaseActive = true;
         } else {
           speechPhaseActive = false;

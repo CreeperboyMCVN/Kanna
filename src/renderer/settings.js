@@ -261,10 +261,10 @@
     const ttsHints = {
       builtin: 'Uses your OS voices (speechSynthesis). Offline, no setup.',
       piper: 'Coming soon — local high-quality offline voice (downloads a model).',
-      elevenlabs: 'Coming soon — needs an ElevenLabs API key.',
-      openai: 'Coming soon — reuses your OpenAI key.',
-      azure: 'Coming soon — needs an Azure Speech key + region.',
-      google: 'Coming soon — needs a Google Cloud TTS key.',
+      elevenlabs: 'Needs an ElevenLabs API key. High-quality multilingual voices.',
+      openai: 'Uses your OpenAI API key (tts-1 model). Cloud voices.',
+      azure: 'Needs an Azure Speech key + region. Microsoft neural voices.',
+      google: 'Needs a Google Cloud TTS API key. Neural2 voices.',
     };
     const hintEl = document.getElementById('tts-provider-hint');
     if (hintEl) hintEl.textContent = ttsHints[els.ttsProvider.value] || '';
@@ -350,10 +350,10 @@
     const ttsHints = {
       builtin: 'Uses your OS voices (speechSynthesis). Offline, no setup.',
       piper: 'Coming soon — local high-quality offline voice (downloads a model).',
-      elevenlabs: 'Coming soon — needs an ElevenLabs API key.',
-      openai: 'Coming soon — reuses your OpenAI key.',
-      azure: 'Coming soon — needs an Azure Speech key + region.',
-      google: 'Coming soon — needs a Google Cloud TTS key.',
+      elevenlabs: 'Needs an ElevenLabs API key. High-quality multilingual voices.',
+      openai: 'Uses your OpenAI API key (tts-1 model). Cloud voices.',
+      azure: 'Needs an Azure Speech key + region. Microsoft neural voices.',
+      google: 'Needs a Google Cloud TTS API key. Neural2 voices.',
     };
     const he = document.getElementById('tts-provider-hint');
     if (he) he.textContent = ttsHints[els.ttsProvider.value] || '';

@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const settings = require('./settings');
 const ai = require('./ai');
+const tts = require('./tts');
 
 function lastUserText(messages) {
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -183,6 +184,9 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('settings:save', (_e, patch) => settings.save(patch));
   ipcMain.handle('models:list', (_e, provider) => ai.listModels(provider));
+
+  ipcMain.handle('tts:speak', async (_e, payload) => tts.speak(payload));
+  ipcMain.on('tts:cancel', () => { /* cloud audio cancelled in renderer by destroying <audio> */ });
 
   ipcMain.handle('memory:get', () => ({ entries: memory.load() }));
   ipcMain.handle('memory:remove', (_e, key) => ({ entries: memory.removeEntry(String(key || '')) }));
