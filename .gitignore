@@ -2,3 +2,4 @@ node_modules/
 dist/
 .opencode/
 *.log
+resources/piper/kanna-piper-server.exe
