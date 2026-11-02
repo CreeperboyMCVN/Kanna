@@ -440,10 +440,10 @@
         // over that window.
         if (shouldSpeak) {
           const rate = Number(tts.rate) || 1;
-          const estCps = Math.max(2, 10 * rate);
-          const speechText = textForSpeech(received);
-          const durMs = Math.max(1200, (speechText.length / estCps) * 1000);
-          targetCps = received.length / (durMs / 1000);
+          // Type at the same speed the voice speaks so they finish together.
+          // Tune the base `10` here — lower = slower text (voice scales with the
+          // rate slider too, so they stay in sync).
+          targetCps = Math.max(1, Math.round(10 * rate));
           speechPhaseActive = true;
         } else {
           speechPhaseActive = false;
