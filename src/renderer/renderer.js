@@ -74,6 +74,7 @@
   // TTS (built-in speechSynthesis for now; provider selectable in settings).
   let tts = { provider: 'builtin', voice: '', rate: 1, pitch: 1, muted: false };
   let shouldSpeak = false;   // set per turn; finalize() speaks only if true
+  let textFrac = 0;          // fractional char accumulator for sub-1 cps typing
 
   // Warm the image cache so emote swaps never flicker.
   for (const emotion of EMOTES) {
@@ -395,6 +396,7 @@
     phase = 'thinking';
     speechPhaseActive = false;
     targetCps = 5;
+    textFrac = 0;
 
     // Sending always closes the composer — the box becomes the stage for her
     // reply, your words shrink to the small top line.
@@ -443,7 +445,9 @@
           // Type at the same speed the voice speaks so they finish together.
           // Tune the base `10` here — lower = slower text (voice scales with the
           // rate slider too, so they stay in sync).
-          targetCps = Math.max(1, Math.round(10 * rate));
+          // Tune the base `10` here — lower = slower text (voice scales with the
+          // rate slider too, so they stay in sync).
+          targetCps = Math.round(10 * rate);
           speechPhaseActive = true;
         } else {
           speechPhaseActive = false;
@@ -527,11 +531,20 @@
 
       let cps;
       if (speechPhaseActive) {
-        cps = Math.max(1, targetCps);
+        cps = Math.max(0.001, targetCps);
       } else {
         cps = Math.min(CATCHUP_MAX, Math.max(TYPE_CPS * liveSpeed, pending.length));
       }
-      const take = Math.max(1, Math.round(dt * cps));
+
+      // Accumulate fractional chars so sub-1 cps actually slows typing down.
+      textFrac += dt * cps;
+      const take = Math.floor(textFrac);
+      if (take < 1) {
+        drainTimer = requestAnimationFrame(pace);
+        return;
+      }
+      textFrac -= take;
+
       const slice = pending.slice(0, take);
       pending = pending.slice(take);
 
