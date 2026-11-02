@@ -23,4 +23,10 @@ contextBridge.exposeInMainWorld('kanna', {
   // TTS: ask the main process to synthesize audio (keys stay in main process).
   ttsSpeak: (payload) => ipcRenderer.invoke('tts:speak', payload),
   ttsCancel: () => ipcRenderer.send('tts:cancel'),
+
+  // STT: microphone transcription through the local Vosk server.
+  sttStart: () => ipcRenderer.invoke('stt:start'),
+  sttAudio: (pcmBuffer) => ipcRenderer.invoke('stt:audio', pcmBuffer),
+  sttFinish: () => ipcRenderer.invoke('stt:finish'),
+  sttCancel: () => ipcRenderer.send('stt:cancel'),
 });

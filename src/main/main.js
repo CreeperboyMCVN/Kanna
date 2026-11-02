@@ -6,6 +6,7 @@ const path = require('node:path');
 const settings = require('./settings');
 const ai = require('./ai');
 const tts = require('./tts');
+const stt = require('./stt');
 
 function lastUserText(messages) {
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -198,6 +199,14 @@ app.whenReady().then(async () => {
   ipcMain.handle('tts:speak', async (_e, payload) => tts.speak(payload));
   ipcMain.on('tts:cancel', () => { /* cloud audio cancelled in renderer by destroying <audio> */ });
 
+  ipcMain.handle('stt:start', async () => {
+    const s = await settings.getSettings();
+    return stt.sttStart({ command: s?.stt?.command, model: s?.stt?.model, lang: s?.stt?.lang });
+  });
+  ipcMain.handle('stt:audio', async (_e, pcm) => stt.sttAudio(pcm));
+  ipcMain.handle('stt:finish', async () => stt.sttFinish());
+  ipcMain.on('stt:cancel', () => { stt.sttCancel().catch(() => {}); });
+
   ipcMain.handle('memory:get', () => ({ entries: memory.load() }));
   ipcMain.handle('memory:remove', (_e, key) => ({ entries: memory.removeEntry(String(key || '')) }));
   ipcMain.handle('memory:clear', () => ({ entries: memory.clearAll() }));
@@ -250,6 +259,7 @@ app.on('before-quit', () => {
   isQuitting = true;
   ai.abortActive();
   try { tts.stopPiperServer(); } catch { /* ignore */ }
+  try { stt.stopSttServer(); } catch { /* ignore */ }
 });
 
 app.on('will-quit', () => {

@@ -48,11 +48,15 @@ your choice of AI provider.
   and stores the answers as short facts in `memory.json` (never secrets).
   The facts ride along with every new conversation's system prompt, and you
   can inspect/clear them in ⚙ Settings → Memory.
+- **Speech-to-text** — hold/toggle the 🎤 button to transcribe locally with
+  Vosk; final text is inserted into the composer.
 - **Text-to-speech** — Kanna can speak her replies: built-in OS voices
   (`speechSynthesis`), cloud engines (ElevenLabs, OpenAI TTS, Azure Speech,
-  Google Cloud TTS), or local Piper. Pick the provider/voice/rate/pitch in
-  ⚙ Settings → Brain, mute from the header toggle, and reply typing is paced
-  to the spoken duration.
+  Google Cloud TTS), or local Piper (default model `resources/piper/en_US.onnx`,
+  speaker `746`). Piper now prefers a persistent local HTTP server for speed and,
+  if present, the optional `kanna-piper-server.exe` bundle. Pick the
+  provider/voice/rate/pitch in ⚙ Settings → Brain, test Piper there, mute from
+  the header toggle, and reply typing is paced to the spoken duration.
 - **Mood + speech speed, decided by the model** — every reply is one JSON
   object `{"mood":"…","speed":…,"hold":…,"text":"…"}`. The mood picks which
   of the 8 emotes she wears (set *before* she starts talking), speed scales
@@ -89,9 +93,14 @@ sent anywhere except to the provider you chose.
 ## Packaging
 
 ```powershell
+npm install
+npm run piper:build   # optional: build resources/piper/kanna-piper-server.exe (requires Python + PyInstaller)
 npm run dist          # current platform -> dist/
 npm run dist -- --win # explicit Windows NSIS installer
 ```
+
+Piper runs from Python by default; if `kanna-piper-server.exe` is present it is
+preferred and removes the need for a system Python install.`
 
 ## Project structure
 

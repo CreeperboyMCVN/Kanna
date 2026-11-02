@@ -662,7 +662,138 @@
     toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2400);
   }
 
+  // --- STT (push to talk with Vosk) -----------------------------------------
+  // Partial results are shown as a toast-ish status; the final transcript is
+  // inserted into the composer as if it had been typed.
+  let sttRecording = false;
+  let sttStream = null;
+  let sttContext = null;
+  let sttSource = null;
+  let sttProcessor = null;
+  let sttPartial = '';
+
+  const micBtn = document.getElementById('btn-mic');
+
+  function floatToPcm16(float32) {
+    const out = new Int16Array(float32.length);
+    for (let i = 0; i < float32.length; i++) {
+      const s = Math.max(-1, Math.min(1, float32[i]));
+      out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+    return out;
+  }
+
+  async function startStt() {
+    if (sttRecording) return;
+    if (typeof navigator?.mediaDevices?.getUserMedia !== 'function') {
+      toast('Microphone API unavailable');
+      return;
+    }
+    if (!window.kanna?.sttStart) {
+      toast('STT is not wired in preload');
+      return;
+    }
+
+    cancelSpeech();
+    sttPartial = '';
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      sttStream = stream;
+      sttContext = new AudioContext({ sampleRate: 16000 });
+      await sttContext.resume();
+      sttSource = sttContext.createMediaStreamSource(stream);
+      sttProcessor = sttContext.createScriptProcessor(4096, 1, 1);
+      sttProcessor.onaudioprocess = (event) => {
+        if (!sttRecording) return;
+        const input = event.inputBuffer.getChannelData(0);
+        const pcm = floatToPcm16(input);
+        window.kanna.sttAudio(pcm.buffer).then((res) => {
+          if (res && res.partial && res.partial !== sttPartial) {
+            sttPartial = res.partial;
+            toast(`Heard: ${sttPartial}`);
+          }
+        }).catch(() => { /* ignore transient chunks */ });
+        // Keep the processor connected without echoing captured audio.
+        const zero = event.outputBuffer.getChannelData(0);
+        for (let i = 0; i < zero.length; i++) zero[i] = 0;
+      };
+      sttSource.connect(sttProcessor);
+      sttProcessor.connect(sttContext.destination);
+
+      const started = await window.kanna.sttStart();
+      if (!started || !started.ok) throw new Error('STT server failed to start');
+
+      sttRecording = true;
+      micBtn?.classList.add('recording');
+      micBtn?.setAttribute('aria-pressed', 'true');
+      statusEl.title = 'Listening…';
+    } catch (err) {
+      await stopStt(false);
+      const msg = (err?.message || 'Microphone unavailable').replace(/^Error: /, '');
+      toast(msg);
+    }
+  }
+
+  async function stopStt(insertTranscript = true) {
+    if (!sttRecording) {
+      // still tear down any half-open resources
+      if (sttProcessor) try { sttProcessor.disconnect(); } catch { /* ignore */ }
+      if (sttSource) try { sttSource.disconnect(); } catch { /* ignore */ }
+      if (sttStream) sttStream.getTracks().forEach((t) => t.stop());
+      if (sttContext) try { await sttContext.close(); } catch { /* ignore */ }
+      sttProcessor = sttSource = sttStream = sttContext = null;
+      return;
+    }
+
+    sttRecording = false;
+    if (sttProcessor) try { sttProcessor.disconnect(); } catch { /* ignore */ }
+    if (sttSource) try { sttSource.disconnect(); } catch { /* ignore */ }
+    if (sttStream) sttStream.getTracks().forEach((t) => t.stop());
+    if (sttContext) try { await sttContext.close(); } catch { /* ignore */ }
+    sttProcessor = sttSource = sttStream = sttContext = null;
+
+    micBtn?.classList.remove('recording');
+    micBtn?.setAttribute('aria-pressed', 'false');
+
+    let transcript = '';
+    try {
+      const result = await window.kanna.sttFinish();
+      transcript = (result?.text || '').trim();
+    } catch (err) {
+      toast((err?.message || 'STT failed').replace(/^Error: /, ''));
+    }
+
+    if (insertTranscript && transcript) {
+      const current = inputEl.value.trim();
+      inputEl.value = current ? `${current} ${transcript}` : transcript;
+      autoGrow();
+      inputEl.focus();
+      toast('Transcribed');
+    } else if (!transcript) {
+      toast('No speech detected');
+    }
+  }
+
+  if (micBtn) {
+    micBtn.addEventListener('click', () => {
+      if (sttRecording) stopStt(true);
+      else startStt();
+    });
+  }
+  // Esc cancels an in-flight recording without inserting text.
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && sttRecording) {
+      e.preventDefault();
+      window.kanna.sttCancel?.();
+      stopStt(false);
+    }
+  });
+  window.addEventListener('beforeunload', () => {
+    if (sttRecording) window.kanna.sttCancel?.();
+  });
+
   // --- wire up ---------------------------------------------------------------
+
 
   $('#composer').addEventListener('submit', (e) => {
     e.preventDefault();

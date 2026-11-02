@@ -19,18 +19,20 @@ Backlog of things not built yet. Pick from the top when starting something new.
   512×512 icon was generated from the happy emote (`assets/icon.png`,
   converted to .ico by electron-builder); the packaged app launches from
   `dist/win-unpacked/Kanna.exe` and the installer is `dist/Kanna Setup 0.1.0.exe`.
-- [x] **TTS — she speaks her replies aloud** — implemented: built-in
+- [x] **TTS — she speaks her replies aloud (done; needs more testing)** — implemented: built-in
   `speechSynthesis`, cloud backends (ElevenLabs, OpenAI TTS, Azure Speech,
   Google Cloud TTS) and local Piper; provider/voice/rate/pitch config,
-  encrypted keys, header mute toggle, speech-paced typing. Remaining polish:
-  verify Piper CLI invocation on a real install, add a Piper checker/test
-  button and clear diagnostics in Settings, optionally bundle or download a
-  portable Python/Piper environment in the app resources, tune sync/timing,
-  and tie rate/pitch/mood more closely to the reply's `speed`/mood fields.
-- [ ] **STT — push-to-talk** — a mic button (or hotkey hold) recording to a
-  file, transcribed via a local engine (whisper.cpp / Vosk) or the provider's
-  audio API, then injected into the input as if typed. Pick one engine; config
-  lands in the Brain tab.
+  encrypted keys, header mute toggle, speech-paced typing. Piper now loads a
+  model from `resources/piper`, defaults to speaker `746`, and can run as a
+  persistent local HTTP server (`resources/piper/piper_server.py`) for faster
+  repeat synthesis, with `npm run piper:build` producing the optional
+  `resources/piper/kanna-piper-server.exe`. Remaining polish: Piper checker
+  diagnostics in Settings, crate/bundle cleanup, tune sync/timing, and tie
+  rate/pitch/mood more closely to the reply's `speed`/mood fields.
+- [x] **STT — push-to-talk (implemented via Python Vosk; needs more testing)** —
+  mic button in header captures 16 kHz PCM in the renderer, streams it to
+  the local Vosk server (`resources/stt/stt_server.py`), and inserts the
+  final transcript into the composer. Partial results appear as toasts.
 
 ## Assistant / pet ideas (later)
 
