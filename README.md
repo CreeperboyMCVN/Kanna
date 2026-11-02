@@ -48,6 +48,11 @@ your choice of AI provider.
   and stores the answers as short facts in `memory.json` (never secrets).
   The facts ride along with every new conversation's system prompt, and you
   can inspect/clear them in ⚙ Settings → Memory.
+- **Text-to-speech** — Kanna can speak her replies: built-in OS voices
+  (`speechSynthesis`), cloud engines (ElevenLabs, OpenAI TTS, Azure Speech,
+  Google Cloud TTS), or local Piper. Pick the provider/voice/rate/pitch in
+  ⚙ Settings → Brain, mute from the header toggle, and reply typing is paced
+  to the spoken duration.
 - **Mood + speech speed, decided by the model** — every reply is one JSON
   object `{"mood":"…","speed":…,"hold":…,"text":"…"}`. The mood picks which
   of the 8 emotes she wears (set *before* she starts talking), speed scales
@@ -76,9 +81,10 @@ Settings persist across launches.
 
 `%APPDATA%\Kanna\settings.json` (created on first save), holding the provider
 choice, per-provider keys/models, the persona, and the custom base URL.
-Keys are stored on this device only — they are never sent anywhere except to
-the provider you chose. (Moving secrets to Electron's `safeStorage` is a nice
-future upgrade.)
+Keys (AI and TTS) are encrypted at rest on this device with
+Electron's `safeStorage` (DPAPI on Windows) and decrypted only in memory;
+plaintext keys from older installs migrate automatically. They are never
+sent anywhere except to the provider you chose.
 
 ## Packaging
 
@@ -95,6 +101,8 @@ src/
     main.js       window + IPC wiring
     settings.js   settings store (defaults, merge, persistence)
     ai.js         provider adapters + SSE streaming
+    tts.js        TTS backends (cloud + Piper) via main process
+    memory.js     long-term memory store + extraction
   preload/
     preload.js    contextBridge API (window.kanna)
   renderer/
@@ -118,5 +126,5 @@ generated from the happy emote).
 
 - Requests run in the main process (no CORS headaches), stream over IPC, and
   can be aborted.
-- Keys are plain text in the settings file on your machine; treat the file like
-  a `.env`.
+- API/TTS keys are stored encrypted in `settings.json`; treat the file like a
+  `.env`.

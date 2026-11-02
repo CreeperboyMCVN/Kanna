@@ -4,25 +4,50 @@ Kanna — a desktop AI companion app. Stack: JavaScript + Electron, packaged wit
 
 ## Repo state
 
-Scaffolded (verified Nov 2026):
+Current state (Nov 2026): chat, settings, memory, tray/hotkey, turn-box UI, and TTS features are built. There is no automated test suite or CI yet.
 
-- `package.json` + `package-lock.json` at the root. Dev deps: `electron`, `electron-builder`. Scripts: `npm start` (run app), `npm run dist` (electron-builder; output in `dist/`).
-- No git history, tests, or CI yet.
+- `package.json` + `package-lock.json` at root. Dev deps: `electron`, `electron-builder`. Scripts: `npm start`, `npm run dist` (output in `dist/`).
+- Packaged artifacts already exist: `dist/Kanna Setup 0.1.0.exe`, `dist/win-unpacked/`.
 - Source layout:
-  - `src/main/main.js` — window + IPC wiring (`settings:get/save`, `models:list`, `chat:send`, `chat:stop`, `memory:*`, window buttons), tray (`assets/icon.ico`; close hides to tray, Quit from the tray menu only), Ctrl+Shift+K global summon hotkey, and remembered window position (settings.json `window` block, restored only when it still fits a connected display).
-  - `src/main/settings.js` — settings store; persists to `%APPDATA%\Kanna\settings.json`. API keys are encrypted at rest (safeStorage → DPAPI on Windows) as `enc:v1:<base64>`; the in-memory cache stays plaintext for the drawer and adapters, `getSettings()` decrypts on load and migrates legacy plaintext keys on first load; `persist()` re-encrypts every key variant on save. Falls back to plaintext storage if the OS can't encrypt. Everything else (`provider`, `persona`, models, base URL) is plaintext.
-  - `src/main/memory.js` — long-term memory: `%APPDATA%\Kanna\memory.json` facts store; after each successful turn `scheduleRemember()` asks the same provider for a JSON add/remove diff (`registerInActive: false` so it can't be aborted by the chat stop button); facts are injected into the chat system prompt via `ai.js → composeChatSystem()`. Extraction is fire-and-forget; parse failures are ignored.
-  - `src/main/ai.js` — provider adapters with SSE streaming (OpenAI, OpenCode gateway `https://opencode.ai/inference/openai/v1`, any OpenAI-compatible base URL (`custom`), Anthropic, Gemini) plus `listModels()` for the per-provider fetch-models button. Reply protocol: chat replies are one JSON object `{"mood":…,"speed":…,"hold":…,"text":…}` (keys in that order); `createReplyReader()` incrementally decodes the raw stream, emitting `chat:meta` {mood,speed,hold} plus decoded `chat:chunk` text. Replies that don't start as JSON pass through raw; broken JSON is salvaged as raw so bubbles are never empty. Memory extraction passes `plain: true` to skip the reader.
-  - `src/preload/preload.js` — contextBridge API as `window.kanna` (settings, memory, chat, `chat:meta`, window buttons).
-  - `src/renderer/` — `index.html`, `style.css`, `renderer.js` (chat + emote/mood logic, lightweight markdown rendering — fenced code blocks become a "written to editor" chip, the agentic editor action is pending in TODO.md — plus the turn-box viewport: her reply streams into `#turn-main` inside the bordered `#turn` box (scrollable, scrollbar hidden), the exchange's other half renders small in `#turn-prior`, `#turn-tap` opens the composer inside the box on click — or interrupts her while streaming — Escape closes it, and the header's 🕘 History tab shows the full in-memory session log), `settings.js` (settings drawer).
-- Renderer uses these assets: all 16 emote files (`<emotion>.png`/`-speak.png`) and `assets/background/1.png` as the chat backdrop.
-- Conversation history lives in the renderer only (in-memory, cleared on close); each request sends the last 24 messages plus the persona as system prompt.
-- If you change chat behavior, keep the IPC contract in mind: `runChat` emits `chat:chunk` (decoded visible text) plus `chat:meta` {mood,speed} events and resolves `{ stopped, text }`; streaming errors reject the `chat:send` invoke.
-- Note: this machine's npm gates install scripts ("allowScripts"). If Electron's binary is ever missing (`node_modules/electron/dist/`), run `node node_modules/electron/install.js`. `electron-winstaller`'s install script may still be pending-approval; only relevant for Squirrel.Windows packaging.
-- Trust `package.json` over this file if they disagree.
+  - `src/main/main.js` — window + IPC (`settings:get/save`, `models:list`, `chat:send`, `chat:stop`, `memory:*`, `tts:speak/cancel`, window buttons), tray, Ctrl+Shift+K summon, remembered window position.
+  - `src/main/settings.js` — settings store at `%APPDATA%\Kanna\settings.json`; API/TTS keys encrypted at rest with safeStorage (DPAPI), plaintext in memory, migration on load.
+  - `src/main/memory.js` — durable facts in `%APPDATA%\Kanna\memory.json`; post-turn extraction; injected into system prompt.
+  - `src/main/ai.js` — providers (OpenAI, custom, OpenCode, Anthropic, Gemini), SSE streaming, model listing, JSON reply protocol reader.
+  - `src/main/tts.js` — built-in path is renderer speechSynthesis; cloud (ElevenLabs, OpenAI, Azure, Google) + Piper run in main and return audio data URLs.
+  - `src/preload/preload.js` — `window.kanna` bridge.
+  - `src/renderer/` — `index.html`, `style.css`, `renderer.js`, `settings.js`.
+- Renderer uses all 16 emote files and `assets/background/1.png`.
+- History is in-memory only; each request sends last 24 messages plus persona.
 
-## Assets — naming conventions
+## Product behavior
 
-- `assets/emotes/` holds Kanna's expressions. Every emotion is a **pair**: `<emotion>.png` (idle) and `<emotion>-speak.png` (talking variant). The `-speak` suffix is the only marker of the talking art, never rename one of a pair.
-- Current emotions (8): `angry`, `dizzy`, `happy`, `neutral`, `sad`, `shy`, `strained`, `surprise`. New emotions need both files.
-- `assets/background/` holds numbered background images (`1.png`); new ones continue the numbering.
+- Fixed 340x400 frameless transparent window; no resize/maximize.
+- Close hides to tray; Quit only from tray menu; Ctrl+Shift+K summons.
+- Window position restored only when it fits a connected display.
+- Turn-box: current reply large, previous half small, tap to compose/interrupt, Escape closes, History drawer.
+- Memory: durable facts, never secrets; view/clear in Settings -> Memory.
+- Mood/speed/hold controlled by model via JSON reply protocol; graceful fallback to raw text.
+- TTS: built-in or cloud/engine voices, free-text voice ID, rate/pitch sliders, mute toggle, speech-paced typing.
+- Provider keys/models remembered separately.
+
+## IPC contract
+
+`settings:get`, `settings:save`, `models:list`, `chat:send`, `chat:stop`, `memory:get`, `memory:remove`, `memory:clear`, `tts:speak`, `tts:cancel`, `win:min`, `win:close`.
+
+`chat:send` emits `chat:chunk` and `chat:meta` {mood,speed,hold}, resolves `{ stopped, text }`; streaming errors reject. `runChat(messages, emit, system, opts)` supports `registerInActive` and `plain`.
+
+## Assets
+
+- Emotions are pairs: `<emotion>.png` and `<emotion>-speak.png`.
+- Current emotions: angry, dizzy, happy, neutral, sad, shy, strained, surprise.
+- Backgrounds numbered in `assets/background/`.
+- `assets/icon.ico` tray/window; `assets/icon.png` 512x512 installer icon.
+
+## Notes
+
+- npm may gate install scripts; if Electron binary missing run `node node_modules/electron/install.js`.
+- Trust `package.json` over this file.
+- Main process owns network requests; abortable with AbortController.
+- Treat settings.json like `.env`: encrypted key blobs plus plaintext config.
+- `memory.js` and `ai.js` lazy-require each other to avoid circular requires.
+- No test framework; run `node --check` on touched JS and smoke-test with `npm start`.
