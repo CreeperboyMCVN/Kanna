@@ -17,7 +17,8 @@ function estimateDurationMs(text, rate) {
 
 // --- ElevenLabs --------------------------------------------------------------
 
-async function ttsElevenLabs({ text, voice, rate, key }) {
+async function ttsElevenLabs({ text, voice, rate, keys = {} }) {
+  const key = keys.elevenlabsKey;
   if (!key) throw new Error('ElevenLabs API key not set');
   const voiceId = voice || '21m00Tcm4TlvDq8ikWAM'; // Rachel
   const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -45,7 +46,8 @@ async function ttsElevenLabs({ text, voice, rate, key }) {
 
 // --- OpenAI TTS --------------------------------------------------------------
 
-async function ttsOpenAI({ text, voice, rate, key }) {
+async function ttsOpenAI({ text, voice, rate, keys = {} }) {
+  const key = keys.openaiKey;
   if (!key) throw new Error('OpenAI API key not set');
   const res = await fetch('https://api.openai.com/v1/audio/speech', {
     method: 'POST',
@@ -73,7 +75,9 @@ async function ttsOpenAI({ text, voice, rate, key }) {
 
 // --- Azure Speech ------------------------------------------------------------
 
-async function ttsAzure({ text, voice, rate, pitch, key, region }) {
+async function ttsAzure({ text, voice, rate, pitch, keys = {} }) {
+  const key = keys.azureKey;
+  const region = keys.azureRegion;
   if (!key) throw new Error('Azure Speech key not set');
   if (!region) throw new Error('Azure region not set');
 
@@ -123,7 +127,8 @@ async function ttsAzure({ text, voice, rate, pitch, key, region }) {
 
 // --- Google Cloud TTS --------------------------------------------------------
 
-async function ttsGoogle({ text, voice, rate, pitch, key }) {
+async function ttsGoogle({ text, voice, rate, pitch, keys = {} }) {
+  const key = keys.googleKey;
   if (!key) throw new Error('Google Cloud TTS key not set');
   const res = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`, {
     method: 'POST',
