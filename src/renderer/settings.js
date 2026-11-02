@@ -110,52 +110,6 @@
     }
   });
 
-  // --- TTS voice list (built-in uses speechSynthesis) --------------------------
-
-  function populateVoices(selected) {
-    const sel = els.ttsVoice;
-    sel.replaceChildren();
-    if (typeof speechSynthesis === 'undefined') {
-      const o = document.createElement('option');
-      o.value = '';
-      o.textContent = '(speechSynthesis unavailable)';
-      sel.append(o);
-      return;
-    }
-    const voices = speechSynthesis.getVoices();
-    if (!voices.length) {
-      const o = document.createElement('option');
-      o.value = '';
-      o.textContent = '(loading voices…)';
-      sel.append(o);
-      return;
-    }
-    // Prefer English voices first, then the rest.
-    const sorted = [...voices].sort((a, b) => {
-      const ae = /^en/i.test(a.lang) ? 0 : 1;
-      const be = /^en/i.test(b.lang) ? 0 : 1;
-      if (ae !== be) return ae - be;
-      return a.name.localeCompare(b.name);
-    });
-    for (const v of sorted) {
-      const o = document.createElement('option');
-      o.value = v.name;
-      o.textContent = `${v.name} (${v.lang})`;
-      if (v.name === selected) o.selected = true;
-      sel.append(o);
-    }
-    if (!selected && sorted.length) sel.value = sorted[0].name;
-  }
-
-  if (typeof speechSynthesis !== 'undefined') {
-    speechSynthesis.onvoiceschanged = () => {
-      if (drawer.classList.contains('open')) {
-        const t = draft?.tts;
-        populateVoices(t?.voice || els.ttsVoice.value || '');
-      }
-    };
-  }
-
   const tabs = drawer.querySelectorAll('.tab');
   const panels = drawer.querySelectorAll('.tab-panel');
 
@@ -274,8 +228,6 @@
     document.getElementById('field-tts-azure-region').hidden = p !== 'azure';
     document.getElementById('field-tts-google-key').hidden = p !== 'google';
 
-    // voice list
-    populateVoices(t.voice || '');
   }
 
   async function save(e) {
@@ -357,7 +309,6 @@
     };
     const he = document.getElementById('tts-provider-hint');
     if (he) he.textContent = ttsHints[els.ttsProvider.value] || '';
-    populateVoices(draft.tts.voice || '');
   });
 
   els.ttsVoice.addEventListener('change', () => {
