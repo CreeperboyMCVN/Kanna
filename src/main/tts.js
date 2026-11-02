@@ -162,12 +162,34 @@ async function ttsGoogle({ text, voice, rate, pitch, keys = {} }) {
 
 // --- Piper (local, offline) --------------------------------------------------
 
-async function ttsPiper({ text, rate = 1, keys = {} }) {
+function getElectronAppPath() {
+  try {
+    return require('electron')?.app?.getAppPath?.() || '';
+  } catch {
+    return '';
+  }
+}
+
+async function resolveBundledPiperModel() {
+  const candidates = [
+    path.join(__dirname, '..', '..', 'resources', 'piper', 'en_US.onnx'),
+    path.join(process.resourcesPath || '', 'piper', 'en_US.onnx'),
+    path.join(process.resourcesPath || '', 'piper', 'model.onnx'),
+    path.join(getElectronAppPath() || '', 'resources', 'piper', 'en_US.onnx'),
+  ];
+  return candidates.find((p) => p && fs.existsSync(p)) || '';
+}
+
+async function ttsPiper({ text, voice = '', rate = 1, keys = {} }) {
   const command = keys.piperCommand || 'python';
-  const model = keys.piperModel || '';
+  let model = (keys.piperModel || '').trim();
+  if (!model) model = await resolveBundledPiperModel();
   const dataDir = keys.piperDataDir || '';
 
-  if (!model) throw new Error('Piper model not set (e.g. en_US-lessac-medium)');
+  if (!model) throw new Error('Piper model not set or bundled (expected resources/piper/en_US.onnx)');
+
+  // Piper multi-speaker models select a speaker with --speaker.
+  const speaker = String(voice || '').trim();
 
   const tmpDir = os.tmpdir();
   const outFile = path.join(tmpDir, `kanna-piper-${Date.now()}.wav`);
@@ -195,6 +217,7 @@ async function ttsPiper({ text, rate = 1, keys = {} }) {
     args.push('-m', 'piper');
   }
   args.push('-m', model);
+  if (speaker) args.push('--speaker', speaker);
   if (dataDir) args.push('--data-dir', dataDir);
   args.push('-f', outFile);
   args.push('--', text);

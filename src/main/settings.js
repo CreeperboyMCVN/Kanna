@@ -27,9 +27,9 @@ const DEFAULT_SETTINGS = {
   opencode: { apiKey: '', model: 'glm-5.3-flash-free' },
   window: { x: null, y: null },
   tts: {
-    provider: 'builtin', // 'builtin' | 'piper' | 'elevenlabs' | 'openai' | 'azure' | 'google'
-    voice: '',           // builtin voice name (or cloud voice id)
-    rate: 1,             // 0.5 - 2
+    provider: 'piper',     // 'builtin' | 'piper' | 'elevenlabs' | 'openai' | 'azure' | 'google'
+    voice: '746',          // Piper speaker id (or builtin voice name / cloud voice id)
+    rate: 1,               // 0.5 - 2
     pitch: 1,            // 0.5 - 2
     muted: false,
     // Cloud provider credentials (encrypted at rest like API keys).

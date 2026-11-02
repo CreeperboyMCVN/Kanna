@@ -18,7 +18,8 @@
     },
     "files": [
       "src/**/*",
-      "assets/**/*"
+      "assets/**/*",
+      "resources/**/*"
     ],
     "win": {
       "target": "nsis",
