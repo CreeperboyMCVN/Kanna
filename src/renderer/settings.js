@@ -199,7 +199,7 @@
     if (p === 'custom') els.baseUrl.value = perProvider.baseUrl || '';
     els.persona.value = draft.persona || '';
     els.key.type = 'password';
-    els.eye.textContent = '👁';
+    els.eye.innerHTML = '<i class="fa-solid fa-eye"></i>';
 
     // --- TTS ---
     const t = draft.tts || (draft.tts = { provider:'builtin', voice:'', rate:1, pitch:1, muted:false, openaiKey:'', elevenlabsKey:'', azureKey:'', azureRegion:'', googleKey:'', piperCommand:'python', piperModel:'', piperDataDir:'' });
@@ -408,7 +408,8 @@
   els.eye.addEventListener('click', () => {
     const hidden = els.key.type === 'password';
     els.key.type = hidden ? 'text' : 'password';
-    els.eye.textContent = hidden ? '🙈' : '👁';
+    // Hidden key: eye (click to reveal). Visible key: slashed eye (click to hide).
+    els.eye.innerHTML = hidden ? '<i class="fa-solid fa-eye"></i>' : '<i class="fa-solid fa-eye-slash"></i>';
   });
 
   window.addEventListener('keydown', (e) => {

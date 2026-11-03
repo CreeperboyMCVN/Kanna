@@ -211,7 +211,7 @@
     const btn = document.getElementById('btn-mute');
     if (!btn) return;
     const muted = !!tts?.muted;
-    btn.textContent = muted ? '🔇' : '🔊';
+    btn.innerHTML = `<i class="fa-solid ${muted ? 'fa-volume-xmark' : 'fa-volume-high'}"></i>`;
     btn.title = muted ? 'Unmute TTS' : 'Mute TTS';
     btn.setAttribute('aria-pressed', muted ? 'true' : 'false');
   }

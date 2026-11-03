@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' blob:; worker-src 'self' blob:; img-src 'self'; style-src 'self'; media-src 'self' data:; connect-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' blob:; worker-src 'self' blob:; img-src 'self'; style-src 'self'; font-src 'self'; media-src 'self' data:; connect-src 'self'">
   <title>Kanna</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="../../assets/fontawesome/css/fontawesome.min.css">
+  <link rel="stylesheet" href="../../assets/fontawesome/css/solid.min.css">
 </head>
 <body>
   <div id="scrim" class="scrim hidden"></div>
@@ -12,14 +14,14 @@
   <aside id="drawer" class="drawer">
     <div class="drawer-head">
       <h2>Settings</h2>
-      <button id="btn-close" class="icon-btn" type="button" aria-label="Close settings">✕</button>
+      <button id="btn-close" class="icon-btn" type="button" aria-label="Close settings"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <form id="settings-form" autocomplete="off">
       <nav class="tabs" role="tablist">
-        <button type="button" class="tab active" data-tab="brain" role="tab">🧠 Brain</button>
-        <button type="button" class="tab" data-tab="personality" role="tab">🎭 Personality</button>
-        <button type="button" class="tab" data-tab="memory" role="tab">🗂️ Memory</button>
-        <button type="button" class="tab" data-tab="voice" role="tab">🔊 Voice</button>
+        <button type="button" class="tab active" data-tab="brain" role="tab"><i class="fa-solid fa-brain"></i> Brain</button>
+        <button type="button" class="tab" data-tab="personality" role="tab"><i class="fa-solid fa-masks-theater"></i> Personality</button>
+        <button type="button" class="tab" data-tab="memory" role="tab"><i class="fa-solid fa-box-archive"></i> Memory</button>
+        <button type="button" class="tab" data-tab="voice" role="tab"><i class="fa-solid fa-volume-high"></i> Voice</button>
       </nav>
 
       <div class="tab-panel active" data-panel="brain">
@@ -39,7 +41,7 @@
           <span>API key</span>
           <span class="key-row">
             <input id="apikey" type="password" spellcheck="false" placeholder="sk-…">
-            <button id="btn-eye" class="icon-btn" type="button" aria-label="Show or hide key">👁</button>
+            <button id="btn-eye" class="icon-btn" type="button" aria-label="Show or hide key"><i class="fa-solid fa-eye"></i></button>
           </span>
         </label>
 
@@ -52,7 +54,7 @@
           <span>Model</span>
           <span class="key-row">
             <input id="model" type="text" spellcheck="false" placeholder="gpt-4o-mini" list="model-list">
-            <button id="btn-models" class="icon-btn" type="button" title="Fetch available models">↻</button>
+            <button id="btn-models" class="icon-btn" type="button" title="Fetch available models"><i class="fa-solid fa-arrow-rotate-right"></i></button>
           </span>
           <datalist id="model-list"></datalist>
         </label>
@@ -136,9 +138,9 @@
             <input id="tts-piper-datadir" type="text" spellcheck="false" placeholder="(optional)">
             <p class="hint">Directory containing voice models. Leave empty for current dir.</p>
           </label>
-          <div class="field-row">
-            <button type="button" id="btn-test-piper" class="icon-btn">Test Piper</button>
-            <span id="piper-test-status" class="hint"></span>
+          <div class="field-row piper-test-row">
+            <button type="button" id="btn-test-piper" class="primary piper-test-btn">Test Piper</button>
+            <span id="piper-test-status" class="hint piper-test-status">Click test to check Piper configuration</span>
           </div>
         </div>
 
@@ -168,7 +170,7 @@
   <aside id="history-drawer" class="drawer">
     <div class="drawer-head">
       <h2>History</h2>
-      <button id="btn-history-close" class="icon-btn" type="button" aria-label="Close history">✕</button>
+      <button id="btn-history-close" class="icon-btn" type="button" aria-label="Close history"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div id="history-list" class="history-list"></div>
   </aside>
@@ -178,12 +180,12 @@
       <span class="brand"><span class="brand-fox">🦊</span><span class="brand-name">Kanna</span></span>
       <span id="status" class="status" title="Checking configuration…"></span>
       <span class="spacer"></span>
-      <button id="btn-mute" class="icon-btn" type="button" aria-label="Mute TTS" title="Mute TTS">🔊</button>
-      <button id="btn-history" class="icon-btn" type="button" aria-label="History" title="History">🕘</button>
-      <button id="btn-settings" class="icon-btn" type="button" aria-label="Settings" title="Settings">⚙</button>
+      <button id="btn-mute" class="icon-btn" type="button" aria-label="Mute TTS" title="Mute TTS"><i class="fa-solid fa-volume-high"></i></button>
+      <button id="btn-history" class="icon-btn" type="button" aria-label="History" title="History"><i class="fa-solid fa-clock-rotate-left"></i></button>
+      <button id="btn-settings" class="icon-btn" type="button" aria-label="Settings" title="Settings"><i class="fa-solid fa-gear"></i></button>
       <div class="win-controls" role="group" aria-label="Window controls">
-        <button id="win-min" class="win-btn" type="button" title="Minimize">−</button>
-        <button id="win-close" class="win-btn close" type="button" title="Close">✕</button>
+        <button id="win-min" class="win-btn" type="button" title="Minimize"><i class="fa-solid fa-minus"></i></button>
+        <button id="win-close" class="win-btn close" type="button" title="Close"><i class="fa-solid fa-xmark"></i></button>
       </div>
     </header>
 
@@ -197,9 +199,9 @@
         <div id="turn-main" class="turn-main"></div>
         <div id="turn-tap" class="turn-tap"></div>
         <form id="composer" class="composer">
-          <button id="btn-mic" class="icon-btn mic-btn" type="button" aria-label="Speech to text" aria-pressed="false" title="Speech to text — click to talk, click again to insert, Esc cancels">🎤</button>
+          <button id="btn-mic" class="icon-btn mic-btn" type="button" aria-label="Speech to text" aria-pressed="false" title="Speech to text — click to talk, click again to insert, Esc cancels"><i class="fa-solid fa-microphone"></i></button>
           <textarea id="input" rows="1" placeholder="Say something…"></textarea>
-          <button id="send" type="submit" aria-label="Send" title="Send (Enter)"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+          <button id="send" type="submit" aria-label="Send" title="Send (Enter)"><i class="fa-solid fa-paper-plane"></i></button>
         </form>
       </div>
     </section>

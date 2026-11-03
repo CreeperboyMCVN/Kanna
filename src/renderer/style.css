@@ -376,6 +376,16 @@ header {
   100% { box-shadow: 0 0 0 0 rgba(255, 128, 149, 0); }
 }
 
+/* The old send glyph was a 16px SVG; keep the FA paper plane at the same size. */
+#send .fa-solid { font-size: 16px; }
+
+/* Settings tabs: keep icon + label on one line even in the narrow drawer. */
+.tab .fa-solid {
+  font-size: 11px;
+  margin-right: 3px;
+}
+.tab { white-space: nowrap; }
+
 /* --- settings drawer --------------------------------------------------------- */
 
 .scrim {
@@ -895,4 +905,19 @@ header .win-controls {
 .turn.composing .composer {
   margin: 2px -14px -10px;
   border-radius: 0 0 17px 17px;
+}
+
+.piper-test-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.piper-test-status {
+  width: 50%;
+}
+
+.piper-test-btn {
+  width: 50%;
 }
