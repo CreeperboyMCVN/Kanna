@@ -172,12 +172,21 @@ function getElectronAppPath() {
 }
 
 async function resolveBundledPiperModel() {
+  // Inside the packaged app __dirname lives under app.asar and the plain
+  // relative path resolves into the ASAR filesystem. existsSync() returns
+  // true there (the file entry is packed), but Python child processes
+  // cannot read those virtual paths — so skip that form when run from
+  // an asar and prefer the unpacked locations electron-builder produces.
+  const inAsar = __dirname.includes('app.asar');
+  const appPath = getElectronAppPath() || '';
   const candidates = [
-    path.join(__dirname, '..', '..', 'resources', 'piper', 'en_US.onnx'),
+    ...(!inAsar ? [path.join(__dirname, '..', '..', 'resources', 'piper', 'en_US.onnx')] : []),
     path.join(process.resourcesPath || '', 'app.asar.unpacked', 'resources', 'piper', 'en_US.onnx'),
     path.join(process.resourcesPath || '', 'piper', 'en_US.onnx'),
     path.join(process.resourcesPath || '', 'piper', 'model.onnx'),
-    path.join(getElectronAppPath() || '', 'resources', 'piper', 'en_US.onnx'),
+    ...(!appPath || appPath.includes('.asar') ? [] : [
+      path.join(appPath, 'resources', 'piper', 'en_US.onnx'),
+    ]),
   ];
   return candidates.find((p) => p && fs.existsSync(p)) || '';
 }
@@ -300,18 +309,23 @@ function resolvePythonExecutable(command) {
 }
 
 function resolveBundledPiperServerExe() {
+  const inAsar = __dirname.includes('app.asar');
   const candidates = [
     path.join(process.resourcesPath || '', 'app.asar.unpacked', 'resources', 'piper', 'kanna-piper-server.exe'),
-    path.join(__dirname, '..', '..', 'resources', 'piper', 'kanna-piper-server.exe'),
+    ...(!inAsar ? [
+      path.join(__dirname, '..', '..', 'resources', 'piper', 'kanna-piper-server.exe'),
+    ] : []),
   ];
   return candidates.find((p) => p && fs.existsSync(p)) || '';
 }
 
 function piperServerScriptPath() {
+  const inAsar = __dirname.includes('app.asar');
   const candidates = [
-    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'resources', 'stt', 'stt_server.py'),
     path.join(process.resourcesPath || '', 'app.asar.unpacked', 'resources', 'piper', 'piper_server.py'),
-    path.join(__dirname, '..', '..', 'resources', 'piper', 'piper_server.py'),
+    ...(!inAsar ? [
+      path.join(__dirname, '..', '..', 'resources', 'piper', 'piper_server.py'),
+    ] : []),
   ];
   return candidates.find((p) => p && fs.existsSync(p)) || '';
 }

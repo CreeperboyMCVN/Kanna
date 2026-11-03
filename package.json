@@ -1,7 +1,7 @@
 {
   "name": "kanna",
   "productName": "Kanna",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Kanna — a tiny desktop AI companion.",
   "author": "Kanna",
   "private": true,

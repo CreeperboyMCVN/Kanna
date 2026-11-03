@@ -16,10 +16,13 @@ function resolvePythonExecutable(command) {
 }
 
 function sttServerScriptPath() {
+  const inAsar = __dirname.includes('app.asar');
   const candidates = [
     path.join(process.resourcesPath || '', 'app.asar.unpacked', 'resources', 'stt', 'stt_server.py'),
     path.join(process.resourcesPath || '', 'stt', 'stt_server.py'),
-    path.join(__dirname, '..', '..', 'resources', 'stt', 'stt_server.py'),
+    ...(!inAsar ? [
+      path.join(__dirname, '..', '..', 'resources', 'stt', 'stt_server.py'),
+    ] : []),
   ];
   return candidates.find((p) => p && fs.existsSync(p)) || '';
 }
@@ -27,9 +30,12 @@ function sttServerScriptPath() {
 // The exe from `npm run stt:build` removes the system Python requirement
 // for STT, mirroring the Piper bundle. Preferred whenever it is present.
 function resolveBundledSttServerExe() {
+  const inAsar = __dirname.includes('app.asar');
   const candidates = [
     path.join(process.resourcesPath || '', 'app.asar.unpacked', 'resources', 'stt', 'kanna-stt-server.exe'),
-    path.join(__dirname, '..', '..', 'resources', 'stt', 'kanna-stt-server.exe'),
+    ...(!inAsar ? [
+      path.join(__dirname, '..', '..', 'resources', 'stt', 'kanna-stt-server.exe'),
+    ] : []),
   ];
   return candidates.find((p) => p && fs.existsSync(p)) || '';
 }
