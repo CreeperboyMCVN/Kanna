@@ -165,6 +165,7 @@ npm run piper:build:cuda # → .opencode/cuda/kanna-piper-server-cuda.exe
 npm install
 npm run dist             # normal installer -> dist/"Kanna Setup <version>.exe"
 npm run dist:cuda        # CUDA installer  -> dist/Kanna-Setup-<version>-cuda.exe
+npm run dist:all         # clean + piper normal + app + piper CUDA + app CUDA
 npm run dist -- --win    # explicit Windows target
 ```
 
