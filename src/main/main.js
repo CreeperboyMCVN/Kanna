@@ -7,6 +7,7 @@ const settings = require('./settings');
 const ai = require('./ai');
 const tts = require('./tts');
 const stt = require('./stt');
+const log = require('./log');
 
 function lastUserText(messages) {
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -181,6 +182,18 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // Startup snapshot — the single most useful block when reading logs from a
+  // user's machine: which build, which paths, which providers are configured.
+  log.info('app starting', {
+    version: app.getVersion(),
+    packaged: app.isPackaged,
+    platform: process.platform,
+    electron: process.versions?.electron,
+    resourcesPath: process.resourcesPath,
+    appPath: (() => { try { return app.getAppPath(); } catch { return ''; } })(),
+    userData: (() => { try { return app.getPath('userData'); } catch { return ''; } })(),
+    log: log.logFilePath(),
+  });
   ipcMain.handle('settings:get', () => settings.getSettings());
 
   ipcMain.handle('settings:save', async (_e, patch) => {
@@ -196,7 +209,14 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle('models:list', (_e, provider) => ai.listModels(provider));
 
-  ipcMain.handle('tts:speak', async (_e, payload) => tts.speak(payload));
+  ipcMain.handle('tts:speak', async (_e, payload) => {
+    try {
+      return await tts.speak(payload);
+    } catch (err) {
+      log.error('[tts:speak] failed:', err);
+      throw err;
+    }
+  });
   ipcMain.on('tts:cancel', () => { /* cloud audio cancelled in renderer by destroying <audio> */ });
 
   ipcMain.handle('stt:start', async () => {
@@ -224,6 +244,9 @@ app.whenReady().then(async () => {
       // her something durable. Never blocks or fails the chat itself.
       if (!result.stopped) memory.scheduleRemember(lastUserText(messages), result.text);
       return result;
+    }).catch((err) => {
+      log.error('[chat:send] failed:', err);
+      throw err;
     });
   });
 
@@ -242,10 +265,10 @@ app.whenReady().then(async () => {
         piperCommand: initial.tts.piperCommand,
         piperModel: initial.tts.piperModel,
         piperDataDir: initial.tts.piperDataDir,
-      }).catch((err) => console.log('[tts piper]', 'server failed to start:', err?.message || err));
+      }).catch((err) => { log.warn('[tts piper]', 'server failed to start:', err?.message || err); });
     }
   } catch (err) {
-    console.log('[tts piper]', 'could not read settings:', err?.message || err);
+    log.warn('[tts piper]', 'could not read settings:', err?.message || err);
   }
   setupTray();
   setupSummonHotkey();
@@ -264,8 +287,14 @@ app.on('before-quit', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  log.info('app quitting (isQuitting=' + isQuitting + ')');
 });
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
+// Main-process diagnostics to the log file: the packaged app has no console,
+// so without this a crash is entirely silent for a user reporting an issue.
+process.on('uncaughtException', (err) => log.error('uncaughtException:', err));
+process.on('unhandledRejection', (reason) => log.error('unhandledRejection:', reason));

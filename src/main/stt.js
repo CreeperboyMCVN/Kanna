@@ -4,6 +4,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { killProcessTree, killReplicaIfStillAlive } = require('./util/processTree');
+const { warn, info } = require('./log');
 
 let sttServer = { proc: null, url: null, starting: null };
 let currentSession = null;
@@ -73,6 +74,7 @@ async function ensureSttServer(keys = {}) {
     const child = exe
       ? spawn(exe, args, { stdio: ['ignore', 'pipe', 'pipe'] })
       : spawn(python, [script, ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
+    info('[stt server] starting:', exe ? exe : 'python', args.length ? args.join(' ') : '(no flags)');
     sttServer.proc = child;
     let stderr = '';
     child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
@@ -89,12 +91,14 @@ async function ensureSttServer(keys = {}) {
       child.on('exit', (code) => {
         if (!sttServer.url) {
           clearTimeout(timer);
+          warn('[stt server] exited before READY (code=' + code + '):', stderr.trim().slice(0, 2000));
           reject(new Error(`STT server exited (${code}): ${stderr.trim()}`));
         }
       });
     });
 
     sttServer.url = url;
+    info('[stt server] READY at', url);
     child.on('exit', () => {
       sttServer.proc = null;
       sttServer.url = null;

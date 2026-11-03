@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { killProcessTree, killReplicaIfStillAlive } = require('./util/processTree');
+const { warn, info } = require('./log');
 
 // Third-party TTS providers for Kanna. All API calls happen in the main
 // process so keys (encrypted at rest in settings.json) never leave it.
@@ -211,7 +212,7 @@ async function ttsPiper({ text, voice = '', rate = 1, keys = {} }) {
       return serverResult;
     }
   } catch (err) {
-    console.warn('[tts piper] server unavailable, falling back to CLI spawn:', err?.message || err);
+    warn('[tts piper] server unavailable, falling back to CLI spawn:', err?.message || err);
   }
 
   const tmpDir = os.tmpdir();
@@ -355,6 +356,7 @@ async function ensurePiperServer(keys = {}) {
     const child = exe
       ? spawn(exe, ['--model', model], { stdio: ['ignore', 'pipe', 'pipe'] })
       : spawn(python, [script, '--model', model], { stdio: ['ignore', 'pipe', 'pipe'] });
+    info('[tts piper] starting server:', exe ? exe : 'python', 'model:', model);
 
     piperServer.proc = child;
     let stderr = '';
@@ -380,12 +382,14 @@ async function ensurePiperServer(keys = {}) {
       child.on('exit', (code) => {
         if (!piperServer.url) {
           clearTimeout(timer);
+          warn('[tts piper] server exited before READY (code=' + code + '):', stderr.trim().slice(0, 2000));
           reject(new Error(`Piper server exited (${code}): ${stderr.trim()}`));
         }
       });
     });
 
     piperServer.url = url;
+    info('[tts piper] server READY at', url);
     child.on('exit', () => {
       piperServer.proc = null;
       piperServer.url = null;
