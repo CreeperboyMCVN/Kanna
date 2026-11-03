@@ -78,3 +78,10 @@ Backlog of things not built yet. Pick from the top when starting something new.
   favor of the turn-box chat box (no second window at all).
 - Maximize/resize handling — the window is fixed 340×400 (`resizable: false`,
   maximize button removed) on purpose.
+
+## Completed recently (v0.1.3)
+
+- [x] **Packaging split** — `npm run dist:all` cleans `dist/`, then builds normal Piper + app + CUDA Piper + CUDA app. Installers: `Kanna Setup X.Y.Z.exe` and `Kanna-Setup-X.Y.Z-cuda.exe`.
+- [x] **Piper GPU (NVIDIA)** — `--gpu` flag with CUDA/cuDNN staged via `_add_cuda_dll_dirs()`; Settings → Voice **Piper GPU** checkbox (`tts.piperUseGpu`); server stops on save and the next speak rebuilds it with refreshed flags.
+- [x] **File logging** — rotating `kanna.log` under `%APPDATA%\Kanna\logs`, including startup snapshot, server lifecycle (with deliberate-stop vs. crash distinction), IPC traces, and global exception/rejection handlers.
+- [x] **One-file CUDA EXE** — isolated `.opencode/cuda-venv` with onnxruntime-gpu (CUDA execution provider verified via nvidia-smi).

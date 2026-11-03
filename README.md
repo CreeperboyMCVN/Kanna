@@ -67,6 +67,13 @@ your choice of AI provider.
   emotion on her face across turns instead of easing back to neutral after
   a few seconds. Replies that don't follow the protocol degrade gracefully
   to plain text with keyword-based moods.
+- **Optional NVIDIA GPU acceleration** — an NVIDIA-only
+  `Kanna-Setup-*-cuda.exe` installer ships a CUDA-enabled Piper server (the
+  **Piper GPU** checkbox in ⚙ Settings → Voice switches synthesis onto the
+  GPU; falls back to CPU when drivers or the CUDA runtime are missing, and
+  the server only restarts with the next spoken message).
+- **Diagnostics** — a packaged app writes to `%APPDATA%\Kanna\logs\kanna.log`
+  (rotating, ~1 MB) for startup snapshot, server lifecycle, and IPC traces.
 
 ## Quick start
 
