@@ -135,21 +135,39 @@ electron-builder still packs local files.
 ### 3. Freeze the Python servers into executables (optional but recommended)
 
 ```powershell
-npm run piper:build   # → resources/piper/kanna-piper-server.exe
-npm run stt:build     # → resources/stt/kanna-stt-server.exe
+npm run piper:build      # → resources/piper/kanna-piper-server.exe (CPU, uses the system Python)
+npm run stt:build        # → resources/stt/kanna-stt-server.exe
 ```
 
 Both run PyInstaller against the server scripts; the exes are gitignored.
 With them present, Piper and STT run with **no system Python at all**;
 without them, the app spawns the Python interpreter from step 1 instead.
 
+#### CUDA Piper build (separate venv)
+
+The GPU-capable Piper exe must be frozen from an environment that has the
+CUDA onnxruntime wheel, so it builds in its own venv — the normal exe stays
+CPU-only and reproducible:
+
+```powershell
+py -3 -m venv .opencode\cuda-venv
+.opencode\cuda-venv\Scripts\python.exe -m pip install piper-tts onnxruntime-gpu
+npm run piper:build:cuda # → .opencode/cuda/kanna-piper-server-cuda.exe
+```
+
 ### 4. Electron build
 
 ```powershell
 npm install
-npm run dist            # Windows NSIS installer -> dist/
-npm run dist -- --win   # explicit Windows target
+npm run dist             # normal installer -> dist/"Kanna Setup <version>.exe"
+npm run dist:cuda        # CUDA installer  -> dist/Kanna-Setup-<version>-cuda.exe
+npm run dist -- --win    # explicit Windows target
 ```
+
+`npm run dist:cuda` (`scripts/dist-cuda.js`) swaps the frozen Piper exe for
+the CUDA build, runs electron-builder with `-cuda` appended to the artifact
+name, then restores the normal exe. **Run `npm run dist` first** — the CUDA
+build only repackages, and both installers must exist in `dist/`.
 
 `resources/piper/**` and `resources/stt/**` are `asarUnpack`ed, so the
 installed app finds the exe, the model, and the server scripts outside

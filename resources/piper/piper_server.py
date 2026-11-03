@@ -6,6 +6,7 @@ ONNX model is loaded a single time instead of on every TTS call.
 """
 
 import argparse
+import importlib.util
 import io
 import json
 import os
@@ -13,6 +14,63 @@ import sys
 import threading
 import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+def _add_cuda_dll_dirs() -> int:
+    """Make the Windows loader see the NVIDIA CUDA/cuDNN runtime DLLs.
+
+    onnxruntime_providers_cuda.dll depends on cublas/cudnn DLLs that ship in
+    `nvidia-*` wheels (or a PyInstaller --collect-all of them) under a
+    `nvidia/<pkg>/bin[...]/` tree the default search path never covers. This
+    registers every directory that directly contains a .dll file.
+    Returns the number of directories staged (and prints them), so a broken
+    CUDA install shows up in logs instead of silently degrading to CPU.
+    """
+    if os.name != "nt":
+        return 0
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass and os.path.isdir(os.path.join(meipass, "nvidia")):
+        base = os.path.join(meipass, "nvidia")  # frozen (onefile) layout
+    else:
+        base = None  # plain Python install: locate the nvidia namespace package
+        try:
+            spec = importlib.util.find_spec("nvidia")
+            if spec and spec.submodule_search_locations:
+                base = list(spec.submodule_search_locations)[0]
+        except (ImportError, ValueError, AttributeError):
+            base = None
+    if not base or not os.path.isdir(base):
+        return 0
+    staged = []
+    dirs = []
+    for dirpath, _dirnames, filenames in os.walk(base):
+        if any(f.lower().endswith(".dll") for f in filenames):
+            os.add_dll_directory(dirpath)
+            dirs.append(dirpath)
+            staged.append(os.path.relpath(dirpath, os.path.dirname(base)))
+    if not dirs:
+        return 0
+    # onnxruntime_providers_cuda.dll resolves its dependencies (cudart,
+    # cublas, cuDNN) by bare name through a plain LoadLibrary, which searches
+    # only the application directory and PATH — AddDllDirectory entries are
+    # invisible to it. Preloading the DLLs by absolute path instead makes the
+    # loader match already-loaded modules by base name, so the provider finds
+    # them wherever the wheels (or the frozen bundle) put them.
+    import ctypes
+    for d in dirs:
+        for name in sorted(f for f in os.listdir(d) if f.lower().endswith(".dll")):
+            try:
+                ctypes.CDLL(os.path.join(d, name))
+            except OSError:
+                # A missing system dependency for one DLL must not poison the
+                # rest; the CUDA provider creation failure surfaces later.
+                print(f"Piper: WARN could not preload {name}", file=sys.stderr, flush=True)
+    print(f"Piper: staged {len(staged)} CUDA DLL dirs: {', '.join(staged)}",
+          flush=True)
+    return len(staged)
+
+
+_add_cuda_dll_dirs()
 
 from piper import PiperVoice, SynthesisConfig
 
