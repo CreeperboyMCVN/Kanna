@@ -197,18 +197,18 @@ app.whenReady().then(async () => {
   ipcMain.handle('settings:get', () => settings.getSettings());
 
   ipcMain.handle('settings:save', async (_e, patch) => {
+    const before = await settings.getSettings();
     const saved = await settings.save(patch);
-    if (saved?.tts?.provider === 'piper') {
-      // Voice options (command/model/GPU/data dir) only bind when the server
-      // starts, so kill the old instance; the next message restarts it with
-      // the fresh flags. Fire-and-forget: speaking must not wait on this.
+    const wasPiper = before?.tts?.provider === 'piper';
+    const isPiper = saved?.tts?.provider === 'piper';
+    if (wasPiper || isPiper) {
+      // Piper options (command/model/GPU/data dir) only bind when the server
+      // starts. Spawning here races PyInstaller's onefile bootloader: the
+      // serving child appears a few seconds after the parent, so killing
+      // "now" then spawning can orphan the not-yet-born child. Instead only
+      // stop the old instance — the next spoken message restarts it with
+      // the fresh flags the renderer sends along.
       tts.stopPiperServer();
-      tts.startPiperServer({
-        piperCommand: saved.tts.piperCommand,
-        piperModel: saved.tts.piperModel,
-        piperDataDir: saved.tts.piperDataDir,
-        piperUseGpu: !!saved.tts.piperUseGpu,
-      }).catch((err) => log.warn('[tts piper]', 'server failed to start:', err?.message || err));
     }
     return saved;
   });
