@@ -141,7 +141,7 @@
           <label class="field">
             <span>Piper GPU</span>
             <input id="tts-piper-gpu" type="checkbox">
-            <p class="hint">Try CUDA for synthesis (NVIDIA, needs piper-tts[onnx-cuda]). Falls back to CPU automatically when unavailable; applies after the next message.</p>
+            <p class="hint">Run synthesis on an NVIDIA GPU (CUDA). Works out of the box with the CUDA installer; with plain Python it needs `pip install onnxruntime-gpu`. Falls back to CPU when unavailable; applies after the next message.</p>
           </label>
           <div class="field-row piper-test-row">
             <button type="button" id="btn-test-piper" class="primary piper-test-btn"><i class="fa-solid fa-wave-square"></i> Test Piper</button>
