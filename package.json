@@ -21,7 +21,8 @@
     "files": [
       "src/**/*",
       "assets/**/*",
-      "resources/**/*"
+      "resources/**/*",
+      "!resources/piper/output.wav"
     ],
     "asarUnpack": [
       "resources/piper/**",

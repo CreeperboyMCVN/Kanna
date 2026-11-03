@@ -117,9 +117,11 @@ Download the `en_US-high` voice from the
 [piper-voices libritts/high tree](
 https://huggingface.co/rhasspy/piper-voices/tree/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/libritts/high)
 — grab both the `.onnx` and its `.onnx.json`, drop them into
-`resources/piper/` as `en_US.onnx` + `en_US.onnx.json`. These files are
-gitignored and stay on your machine only (`git-filter-repo` history already
-excludes them from the published repo).
+`resources/piper/` as `en_US.onnx` + `en_US.onnx.json`. They stay unnamed
+exactly like this; the build packs them unmodified, so the Windows
+installer ships them and end users get offline speech out of the box.
+Git ignores them (never commit a 130 MB model), but that only guards git —
+electron-builder still packs local files.
 
 ### 3. Freeze the Python servers into executables (optional but recommended)
 
