@@ -294,6 +294,9 @@ async function speak({ text, provider, voice = '', rate = 1, pitch = 1, keys = {
 // from scratch for every bubble.
 
 let piperServer = { proc: null, url: null, starting: null };
+// Child process the app stopped deliberately (not a crash) — see
+// stopPiperServer() below.
+let piperStoppingChild = null;
 
 // PyInstaller --onefile builds (kanna-piper-server.exe) run as a parent
 // bootloader process plus a child that actually serves. Killing only the
@@ -384,8 +387,14 @@ async function ensurePiperServer(keys = {}) {
       child.on('exit', (code) => {
         if (!piperServer.url) {
           clearTimeout(timer);
-          warn('[tts piper] server exited before READY (code=' + code + '):', stderr.trim().slice(0, 2000));
-          reject(new Error(`Piper server exited (${code}): ${stderr.trim()}`));
+          if (piperStoppingChild === child) {
+            // Deliberate stop (taskkill /T /F exits the parent with code 1),
+            // not a crash — keep the log factual.
+            info('[tts piper] server stopped intentionally (code=' + code + ')');
+          } else {
+            warn('[tts piper] server exited before READY (code=' + code + '):', stderr.trim().slice(0, 2000));
+            reject(new Error(`Piper server exited (${code}): ${stderr.trim()}`));
+          }
         }
       });
     });
@@ -413,6 +422,10 @@ function stopPiperServer() {
   piperServer = { proc: null, url: null, starting: null };
   if (!server.proc && !server.url && !server.starting) return;
 
+  // Track which child was stopped on purpose so its exit event is not
+  // reported as a crash.
+  piperStoppingChild = server.proc || null;
+
   // 1. Graceful suicide of the serving child (and its onefile parent).
   if (server.url) {
     try { fetch(server.url + '/shutdown', { method: 'POST' }).catch(() => { /* ignore */ }); } catch { /* ignore */ }
@@ -420,7 +433,10 @@ function stopPiperServer() {
   // 2. Tree kill while the bootloader parent is certainly alive.
   // 3. Hard-kill fallback if anything survived both.
   const pid = server.proc?.pid;
-  if (pid) killProcessTree(pid);
+  if (pid) {
+    killProcessTree(pid);
+    setTimeout(() => { piperStoppingChild = null; }, 5000);
+  }
   killReplicaIfStillAlive(pid);
 }
 
