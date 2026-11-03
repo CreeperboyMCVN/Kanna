@@ -34,9 +34,13 @@ console.log('piper exe swapped to CUDA build — building installer...');
 
 let status = 1;
 try {
-  const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-  const r = spawnSync(npx, [
-    'electron-builder',
+  // Run electron-builder's cli.js directly with node: spawning `npx` depends
+  // on a .cmd shim, and Node >=20 refuses to spawn .cmd files without
+  // shell:true (EINVAL), which made these builds die silently.
+  const cli = path.join(root, 'node_modules', 'electron-builder', 'cli.js');
+  if (!fs.existsSync(cli)) die(`missing ${path.relative(root, cli)} — run "npm install" first`);
+  const r = spawnSync(process.execPath, [
+    cli,
     '-c.artifactName=Kanna-Setup-${version}-cuda.${ext}',
   ], { stdio: 'inherit', cwd: root });
   status = r.status ?? 1;
