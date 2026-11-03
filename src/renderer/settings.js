@@ -226,6 +226,7 @@
     els.ttsPiperCommand.value = t.piperCommand || 'py';
     els.ttsPiperModel.value = t.piperModel || '';
     els.ttsPiperDatadir.value = t.piperDataDir || '';
+    syncVoiceField(t);
 
     const ttsHints = {
       builtin: 'Uses your OS voices (speechSynthesis). Offline, no setup.',
@@ -244,6 +245,37 @@
     document.getElementById('field-tts-google-key').hidden = els.ttsProvider.value !== 'google';
     document.getElementById('field-tts-piper').hidden = els.ttsProvider.value !== 'piper';
 
+  }
+
+  // Voices are per TTS engine — a Piper speaker id means nothing to
+  // ElevenLabs, and vice versa. The active provider's voice is mirrored into
+  // draft.tts.voice so the chat/TTS path keeps a single string to read.
+  const VOICE_META = {
+    builtin: { ph: 'OS voice name (optional)' },
+    piper: { ph: 'speaker id, e.g. 746' },
+    elevenlabs: { ph: 'Voice name or id, e.g. Rachel' },
+    openai: { ph: 'alloy / nova / shimmer' },
+    azure: { ph: 'en-US-AvaNeural' },
+    google: { ph: 'en-US-Neural2-F' },
+  };
+
+  function voiceFor(t, provider) {
+    const map = t.voiceByProvider || (t.voiceByProvider = {});
+    if (typeof map[provider] === 'string') return map[provider];
+    // Legacy stores kept one voice for all engines. Seed the map with it when
+    // it plausibly belongs to the active provider, so a switch starts clean
+    // but the original value isn't lost.
+    if (t.voice && !Object.keys(map).length && provider === t.provider) {
+      map[provider] = t.voice;
+      return t.voice;
+    }
+    return '';
+  }
+
+  function syncVoiceField(t) {
+    if (!t) return;
+    els.ttsVoice.value = voiceFor(t, t.provider || 'builtin');
+    els.ttsVoice.placeholder = (VOICE_META[t.provider] || VOICE_META.builtin).ph;
   }
 
   async function save(e) {
@@ -266,6 +298,7 @@
       tts: {
         provider: draft.tts?.provider || 'builtin',
         voice: draft.tts?.voice || '',
+        voiceByProvider: draft.tts?.voiceByProvider || {},
         rate: draft.tts?.rate ?? 1,
         pitch: draft.tts?.pitch ?? 1,
         muted: !!draft.tts?.muted,
@@ -313,6 +346,9 @@
   els.ttsProvider.addEventListener('change', () => {
     if (!draft.tts) draft.tts = {};
     draft.tts.provider = els.ttsProvider.value;
+    // Voice follows the engine: remember what you typed, swap what you use.
+    syncVoiceField(draft.tts);
+    draft.tts.voice = els.ttsVoice.value;
     document.getElementById('field-tts-openai-key').hidden = els.ttsProvider.value !== 'openai';
     document.getElementById('field-tts-elevenlabs-key').hidden = els.ttsProvider.value !== 'elevenlabs';
     document.getElementById('field-tts-azure-key').hidden = els.ttsProvider.value !== 'azure';
@@ -330,9 +366,11 @@
     if (he) he.textContent = ttsHints[els.ttsProvider.value] || '';
   });
 
-  els.ttsVoice.addEventListener('change', () => {
+  els.ttsVoice.addEventListener('input', () => {
     if (!draft.tts) draft.tts = {};
     draft.tts.voice = els.ttsVoice.value;
+    if (!draft.tts.voiceByProvider) draft.tts.voiceByProvider = {};
+    draft.tts.voiceByProvider[draft.tts.provider || 'builtin'] = els.ttsVoice.value;
   });
 
   els.ttsRate.addEventListener('input', () => {

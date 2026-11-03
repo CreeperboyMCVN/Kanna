@@ -28,7 +28,8 @@ const DEFAULT_SETTINGS = {
   window: { x: null, y: null },
   tts: {
     provider: 'piper',     // 'builtin' | 'piper' | 'elevenlabs' | 'openai' | 'azure' | 'google'
-    voice: '746',          // Piper speaker id (or builtin voice name / cloud voice id)
+    voice: '746',          // active provider's voice (mirrored from voiceByProvider)
+    voiceByProvider: {},   // remembered voice per TTS engine: { piper: '746', openai: 'alloy', … }
     rate: 1,               // 0.5 - 2
     pitch: 1,            // 0.5 - 2
     muted: false,
