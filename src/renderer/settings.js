@@ -31,6 +31,7 @@
     ttsPiperCommand: $('#tts-piper-command'),
     ttsPiperModel: $('#tts-piper-model'),
     ttsPiperDatadir: $('#tts-piper-datadir'),
+    ttsPiperGpu: $('#tts-piper-gpu'),
   };
 
   const PROVIDER_META = {
@@ -211,7 +212,7 @@
     els.eye.innerHTML = '<i class="fa-solid fa-eye"></i>';
 
     // --- TTS ---
-    const t = draft.tts || (draft.tts = { provider:'builtin', voice:'', rate:1, pitch:1, muted:false, openaiKey:'', elevenlabsKey:'', azureKey:'', azureRegion:'', googleKey:'', piperCommand:'py', piperModel:'', piperDataDir:'' });
+    const t = draft.tts || (draft.tts = { provider:'builtin', voice:'', rate:1, pitch:1, muted:false, openaiKey:'', elevenlabsKey:'', azureKey:'', azureRegion:'', googleKey:'', piperCommand:'py', piperModel:'', piperDataDir:'', piperUseGpu:false });
     els.ttsProvider.value = t.provider || 'builtin';
     els.ttsRate.value = t.rate ?? 1;
     els.ttsRateVal.textContent = Number(t.rate ?? 1).toFixed(1);
@@ -226,6 +227,7 @@
     els.ttsPiperCommand.value = t.piperCommand || 'py';
     els.ttsPiperModel.value = t.piperModel || '';
     els.ttsPiperDatadir.value = t.piperDataDir || '';
+    els.ttsPiperGpu.checked = !!t.piperUseGpu;
     syncVoiceField(t);
 
     const ttsHints = {
@@ -310,6 +312,7 @@
         piperCommand: draft.tts?.piperCommand || 'py',
         piperModel: draft.tts?.piperModel || '',
         piperDataDir: draft.tts?.piperDataDir || '',
+        piperUseGpu: !!draft.tts?.piperUseGpu,
       },
     });
 
@@ -409,6 +412,10 @@
       draft.tts[field] = el.value;
     });
   }
+  els.ttsPiperGpu.addEventListener('change', () => {
+    if (!draft.tts) draft.tts = {};
+    draft.tts.piperUseGpu = els.ttsPiperGpu.checked;
+  });
   for (const [el, field] of ttsKeyMap) {
     el.addEventListener('input', () => {
       if (!draft.tts) draft.tts = {};
@@ -438,6 +445,7 @@
             piperCommand: els.ttsPiperCommand.value || 'py',
             piperModel: els.ttsPiperModel.value || '',
             piperDataDir: els.ttsPiperDatadir.value || '',
+            piperUseGpu: els.ttsPiperGpu.checked,
           },
         });
         if (piperStatus) piperStatus.textContent = result?.audioDataUrl

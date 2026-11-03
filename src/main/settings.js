@@ -43,6 +43,7 @@ const DEFAULT_SETTINGS = {
     piperCommand: 'py',       // executable or 'py -m piper' (python on Linux/macOS)
     piperModel: '',           // model name (e.g. en_US-lessac-medium) or path to .onnx
     piperDataDir: '',         // directory containing voice models (optional)
+    piperUseGpu: false,       // try CUDA for Piper (needs piper-tts[onnx-cuda]; auto-falls back to CPU)
   },
   stt: {
     command: 'py',

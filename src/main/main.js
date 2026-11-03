@@ -199,11 +199,16 @@ app.whenReady().then(async () => {
   ipcMain.handle('settings:save', async (_e, patch) => {
     const saved = await settings.save(patch);
     if (saved?.tts?.provider === 'piper') {
+      // Voice options (command/model/GPU/data dir) only bind when the server
+      // starts, so kill the old instance; the next message restarts it with
+      // the fresh flags. Fire-and-forget: speaking must not wait on this.
+      tts.stopPiperServer();
       tts.startPiperServer({
         piperCommand: saved.tts.piperCommand,
         piperModel: saved.tts.piperModel,
         piperDataDir: saved.tts.piperDataDir,
-      }).catch((err) => console.log('[tts piper]', 'server failed to start:', err?.message || err));
+        piperUseGpu: !!saved.tts.piperUseGpu,
+      }).catch((err) => log.warn('[tts piper]', 'server failed to start:', err?.message || err));
     }
     return saved;
   });
@@ -265,6 +270,7 @@ app.whenReady().then(async () => {
         piperCommand: initial.tts.piperCommand,
         piperModel: initial.tts.piperModel,
         piperDataDir: initial.tts.piperDataDir,
+        piperUseGpu: !!initial.tts.piperUseGpu,
       }).catch((err) => { log.warn('[tts piper]', 'server failed to start:', err?.message || err); });
     }
   } catch (err) {

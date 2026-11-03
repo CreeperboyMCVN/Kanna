@@ -254,6 +254,7 @@
       piperCommand: tts.piperCommand || 'py',
       piperModel: tts.piperModel || '',
       piperDataDir: tts.piperDataDir || '',
+      piperUseGpu: !!tts.piperUseGpu,
     };
     let result;
     try {

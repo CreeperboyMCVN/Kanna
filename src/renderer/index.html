@@ -138,6 +138,11 @@
             <input id="tts-piper-datadir" type="text" spellcheck="false" placeholder="(optional)">
             <p class="hint">Directory containing voice models. Leave empty for current dir.</p>
           </label>
+          <label class="field">
+            <span>Piper GPU</span>
+            <input id="tts-piper-gpu" type="checkbox">
+            <p class="hint">Try CUDA for synthesis (NVIDIA, needs piper-tts[onnx-cuda]). Falls back to CPU automatically when unavailable; applies after the next message.</p>
+          </label>
           <div class="field-row piper-test-row">
             <button type="button" id="btn-test-piper" class="primary piper-test-btn"><i class="fa-solid fa-wave-square"></i> Test Piper</button>
             <span id="piper-test-status" class="hint piper-test-status">Click test to check Piper configuration</span>

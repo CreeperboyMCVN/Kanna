@@ -353,10 +353,12 @@ async function ensurePiperServer(keys = {}) {
 
     const exe = resolveBundledPiperServerExe();
     const python = resolvePythonExecutable(keys.piperCommand);
+    const serverArgs = keys.piperUseGpu ? ['--model', model, '--gpu'] : ['--model', model];
     const child = exe
-      ? spawn(exe, ['--model', model], { stdio: ['ignore', 'pipe', 'pipe'] })
-      : spawn(python, [script, '--model', model], { stdio: ['ignore', 'pipe', 'pipe'] });
-    info('[tts piper] starting server:', exe ? exe : 'python', 'model:', model);
+      ? spawn(exe, serverArgs, { stdio: ['ignore', 'pipe', 'pipe'] })
+      : spawn(python, [script, ...serverArgs], { stdio: ['ignore', 'pipe', 'pipe'] });
+    info('[tts piper] starting server:', exe ? exe : 'python',
+      'model:', model, keys.piperUseGpu ? 'gpu=on' : 'gpu=off');
 
     piperServer.proc = child;
     let stderr = '';

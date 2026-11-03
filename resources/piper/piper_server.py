@@ -100,16 +100,38 @@ def make_handler(voice):
     return Handler
 
 
+def _cuda_available() -> bool:
+    """True when onnxruntime actually reports a working CUDA provider."""
+    try:
+        import onnxruntime as ort
+        return "CUDAExecutionProvider" in ort.get_available_providers()
+    except Exception:
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", required=True, help="Path to .onnx Piper model")
     parser.add_argument("--speaker", default="", help="Default speaker (optional)")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=0, help="0 lets the OS choose")
+    parser.add_argument("--gpu", action="store_true",
+                        help="Try CUDA for ONNX inference (needs piper-tts[onnx-cuda];"
+                             " falls back to CPU automatically)")
     args = parser.parse_args()
 
     # Model loading is the slow part; do it before binding/serving.
-    voice = PiperVoice.load(args.model)
+    # ORT only prints a UserWarning when CUDA is missing and silently serves
+    # CPU — detect that here so the log tells the truth instead of claiming
+    # GPU acceleration that never happens.
+    if args.gpu and _cuda_available():
+        voice = PiperVoice.load(args.model, use_cuda=True)
+        print("GPU on (cuda)", flush=True)
+    else:
+        if args.gpu:
+            print(" Piper: GPU requested but CUDAExecutionProvider is not available;"
+                  " using CPU.", file=sys.stderr, flush=True)
+        voice = PiperVoice.load(args.model)
 
     handler = make_handler(voice)
     httpd = ThreadingHTTPServer((args.host, args.port), handler)
