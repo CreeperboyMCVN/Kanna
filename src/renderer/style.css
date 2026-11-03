@@ -471,6 +471,7 @@ header {
   font-family: inherit;
   font-size: 13px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  overflow: hidden;
 }
 
 .field textarea { resize: vertical; line-height: 1.55; }
@@ -926,4 +927,12 @@ header .win-controls {
   width: auto;
   padding: 6px 10px;
   display: inline-flex;
+}
+
+.composer textarea {
+  resize: none;
+  overflow: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  height: 40px !important;
 }
