@@ -8,6 +8,7 @@ chunks, so the acoustic model is loaded only once.
 import argparse
 import io
 import json
+import os
 import threading
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -20,6 +21,7 @@ class State:
         self.model = None
         self.sessions = {}
         self.lock = threading.Lock()
+        self.server = None
 
 
 STATE = State()
@@ -57,6 +59,14 @@ def make_handler():
         def do_POST(self):
             route = self.path.split("?", 1)[0].rstrip("/")
             try:
+                if route == "/shutdown":
+                    # Lets the app stop the server cleanly: the serving
+                    # process exits itself, so a PyInstaller onefile
+                    # parent+child pair never outlives an external kill.
+                    self._send_json(200, {"ok": True})
+                    threading.Thread(target=STATE.server.shutdown, daemon=True).start()
+                    return
+
                 if route == "/start":
                     payload = json.loads(self._body() or b"{}")
                     sample_rate = float(payload.get("sampleRate", 16000))
@@ -123,11 +133,13 @@ def main():
 
     handler = make_handler()
     httpd = ThreadingHTTPServer((args.host, args.port), handler)
+    STATE.server = httpd
     print(f"READY http://{args.host}:{httpd.server_port}", flush=True)
     try:
         httpd.serve_forever()
     finally:
         httpd.server_close()
+        os._exit(0)
 
 
 if __name__ == "__main__":

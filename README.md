@@ -82,7 +82,8 @@ The app opens in development mode with default settings, then:
 3. Chat away.
 
 Conversations are kept in memory only — closing the window clears the chat.
-Settings persist across launches.
+Settings persist across launches. For the offline voice stack (Piper TTS +
+Vosk STT) see [Packaging](#packaging--from-python-packages-to-the-electron-build).
 
 ## Where settings live
 
@@ -120,16 +121,16 @@ https://huggingface.co/rhasspy/piper-voices/tree/c10ece1aade47bb51c153c893d14e5b
 gitignored and stay on your machine only (`git-filter-repo` history already
 excludes them from the published repo).
 
-### 3. Build the Piper server executable (optional but recommended)
+### 3. Freeze the Python servers into executables (optional but recommended)
 
 ```powershell
-npm run piper:build
+npm run piper:build   # → resources/piper/kanna-piper-server.exe
+npm run stt:build     # → resources/stt/kanna-stt-server.exe
 ```
 
-Runs PyInstaller against `resources/piper/piper_server.py` and writes
-`resources/piper/kanna-piper-server.exe` (gitignored). When that exe exists,
-Piper runs without a system Python at all; without it, the app spawns the
-Python from step 1.
+Both run PyInstaller against the server scripts; the exes are gitignored.
+With them present, Piper and STT run with **no system Python at all**;
+without them, the app spawns the Python interpreter from step 1 instead.
 
 ### 4. Electron build
 

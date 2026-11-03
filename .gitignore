@@ -6,3 +6,4 @@ resources/piper/kanna-piper-server.exe
 resources/piper/*.onnx
 resources/piper/*.onnx.json
 resources/piper/output.wav
+resources/stt/kanna-stt-server.exe

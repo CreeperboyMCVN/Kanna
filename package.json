@@ -9,7 +9,8 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder",
-    "piper:build": "py -3 -m PyInstaller --noconfirm --onefile --name kanna-piper-server --distpath resources/piper --workpath .opencode/piper-build --specpath .opencode/piper-build --hidden-import piper --hidden-import onnxruntime --collect-all piper resources/piper/piper_server.py"
+    "piper:build": "py -3 -m PyInstaller --noconfirm --onefile --name kanna-piper-server --distpath resources/piper --workpath .opencode/piper-build --specpath .opencode/piper-build --hidden-import piper --hidden-import onnxruntime --collect-all piper resources/piper/piper_server.py",
+    "stt:build": "py -3 -m PyInstaller --noconfirm --onefile --name kanna-stt-server --distpath resources/stt --workpath .opencode/stt-build --specpath .opencode/stt-build --collect-all vosk resources/stt/stt_server.py"
   },
   "build": {
     "appId": "app.kanna.desktop",

@@ -13,7 +13,7 @@ Current state (Nov 2026): chat, settings, memory, tray/hotkey, turn-box UI, and 
   - `src/main/settings.js` — settings store at `%APPDATA%\Kanna\settings.json`; API/TTS keys encrypted at rest with safeStorage (DPAPI), plaintext in memory, migration on load.
   - `src/main/memory.js` — durable facts in `%APPDATA%\Kanna\memory.json`; post-turn extraction; injected into system prompt.
   - `src/main/ai.js` — providers (OpenAI, custom, OpenCode, Anthropic, Gemini), SSE streaming, model listing, JSON reply protocol reader.
-  - `src/main/stt.js` — local Vosk STT server client (PCM streaming, partial/final results).
+  - `src/main/stt.js` — local Vosk STT server client (PCM streaming, partial/final results; prefers the frozen `kanna-stt-server.exe`, falls back to `py` + `resources/stt/stt_server.py`).
   - `src/main/tts.js` — built-in path is renderer speechSynthesis; cloud (ElevenLabs, OpenAI, Azure, Google) + Piper run in main and return audio data URLs. Piper can use one-off CLI calls or a persistent local HTTP server (`resources/piper/piper_server.py` / optional `kanna-piper-server.exe`).
   - `src/preload/preload.js` — `window.kanna` bridge.
   - `src/renderer/` — `index.html`, `style.css`, `renderer.js`, `settings.js`.

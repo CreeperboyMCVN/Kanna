@@ -4,6 +4,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const { killProcessTree, killReplicaIfStillAlive } = require('./util/processTree');
 
 // Third-party TTS providers for Kanna. All API calls happen in the main
 // process so keys (encrypted at rest in settings.json) never leave it.
@@ -290,26 +291,6 @@ let piperServer = { proc: null, url: null, starting: null };
 // the race against taskkill's own tree walk. Order matters: try the
 // graceful /shutdown first (the child exits itself, then the parent
 // bootloader follows), then tree-kill, and hard-kill as a last resort.
-function killPiperProcessTree(pid) {
-  if (!pid) return;
-  if (process.platform === 'win32') {
-    try {
-      spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
-    } catch { /* fall through to plain kill */ }
-    return;
-  }
-  try { process.kill(pid, 'SIGKILL'); } catch { /* ignore */ }
-}
-
-function killReplicaIfStillAlive(pid) {
-  if (!pid) return;
-  setTimeout(() => {
-    try {
-      process.kill(pid, 0);      // throws ESRCH when gone
-      process.kill(pid, 'SIGKILL');
-    } catch { /* already gone */ }
-  }, 2500);
-}
 
 function resolvePythonExecutable(command) {
   const first = String(command || 'python').trim().split(/\\s+/)[0];
@@ -419,7 +400,7 @@ function stopPiperServer() {
   // 2. Tree kill while the bootloader parent is certainly alive.
   // 3. Hard-kill fallback if anything survived both.
   const pid = server.proc?.pid;
-  if (pid) killPiperProcessTree(pid);
+  if (pid) killProcessTree(pid);
   killReplicaIfStillAlive(pid);
 }
 

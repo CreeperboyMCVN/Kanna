@@ -3,6 +3,7 @@
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { killProcessTree, killReplicaIfStillAlive } = require('./util/processTree');
 
 let sttServer = { proc: null, url: null, starting: null };
 let currentSession = null;
@@ -23,6 +24,16 @@ function sttServerScriptPath() {
   return candidates.find((p) => p && fs.existsSync(p)) || '';
 }
 
+// The exe from `npm run stt:build` removes the system Python requirement
+// for STT, mirroring the Piper bundle. Preferred whenever it is present.
+function resolveBundledSttServerExe() {
+  const candidates = [
+    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'resources', 'stt', 'kanna-stt-server.exe'),
+    path.join(__dirname, '..', '..', 'resources', 'stt', 'kanna-stt-server.exe'),
+  ];
+  return candidates.find((p) => p && fs.existsSync(p)) || '';
+}
+
 function resolveSttModel(modelPath) {
   if (!modelPath) return '';
   return fs.existsSync(modelPath) ? modelPath : '';
@@ -36,8 +47,7 @@ async function ensureSttServer(keys = {}) {
     } catch {
       // stale; restart
     }
-    if (sttServer.proc) try { sttServer.proc.kill(); } catch { /* ignore */ }
-    sttServer = { proc: null, url: null, starting: null };
+    stopSttServer();
   }
   if (sttServer.starting) return await sttServer.starting;
 
@@ -45,12 +55,18 @@ async function ensureSttServer(keys = {}) {
     const script = sttServerScriptPath();
     if (!script) throw new Error('STT server script is missing');
 
-    const python = resolvePythonExecutable(keys.command || keys.sttCommand || 'python');
-    const args = [script];
     const model = resolveSttModel(keys.model || keys.sttModel || '');
+    const langKey = keys.lang || keys.sttLang || 'en-us';
+    const exe = resolveBundledSttServerExe();
+    const python = resolvePythonExecutable(keys.command || keys.sttCommand || 'python');
+    const args = [];
     if (model) args.push('--model', model);
-    else args.push('--lang', keys.lang || keys.sttLang || 'en-us');
-    const child = spawn(python, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    else args.push('--lang', langKey);
+    // The frozen exe carries its own default model name in the script;
+    // pass the same flags you would to the Python one.
+    const child = exe
+      ? spawn(exe, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+      : spawn(python, [script, ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
     sttServer.proc = child;
     let stderr = '';
     child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
@@ -65,7 +81,6 @@ async function ensureSttServer(keys = {}) {
       });
       child.on('error', (err) => { clearTimeout(timer); reject(err); });
       child.on('exit', (code) => {
-  console.log('[stt server] exited', code, stderr.trim().slice(0, 500));
         if (!sttServer.url) {
           clearTimeout(timer);
           reject(new Error(`STT server exited (${code}): ${stderr.trim()}`));
@@ -140,9 +155,19 @@ async function sttCancel() {
 }
 
 function stopSttServer() {
-  if (sttServer.proc) try { sttServer.proc.kill(); } catch { /* ignore */ }
+  const server = sttServer;
   sttServer = { proc: null, url: null, starting: null };
   currentSession = null;
+  if (!server.proc && !server.url && !server.starting) return;
+
+  // Same sequence as the Piper server: graceful suicide first, tree kill
+  // while the bootloader is certainly alive, then a hard-kill fallback.
+  if (server.url) {
+    try { fetch(server.url + '/shutdown', { method: 'POST' }).catch(() => { /* ignore */ }); } catch { /* ignore */ }
+  }
+  const pid = server.proc?.pid;
+  if (pid) killProcessTree(pid);
+  killReplicaIfStillAlive(pid);
 }
 
 module.exports = { sttStart, sttAudio, sttFinish, sttCancel, stopSttServer };
