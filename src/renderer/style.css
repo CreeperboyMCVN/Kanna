@@ -348,6 +348,34 @@ header {
   box-shadow: 0 6px 16px rgba(227, 83, 115, 0.35);
 }
 
+/* Mic sits inside the composer next to the input, styled like it is part of
+   the field rather than header chrome. */
+.mic-btn {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  font-size: 17px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--glass);
+  color: var(--ink-soft);
+}
+
+.mic-btn:hover { background: var(--glass-strong); color: var(--ink); }
+
+.mic-btn.recording {
+  color: #ff90a5;
+  border-color: rgba(255, 128, 149, 0.55);
+  background: rgba(255, 128, 149, 0.12);
+  animation: mic-pulse 1.4s ease-out infinite;
+}
+
+@keyframes mic-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 128, 149, 0.35); }
+  70%  { box-shadow: 0 0 0 8px rgba(255, 128, 149, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 128, 149, 0); }
+}
+
 /* --- settings drawer --------------------------------------------------------- */
 
 .scrim {
@@ -720,6 +748,15 @@ header .win-controls {
 .win-controls {
   display: flex;
   align-items: center;
+}
+
+/* Thin divider so the app actions read apart from the window chrome. */
+.win-controls::before {
+  content: "";
+  width: 1px;
+  height: 16px;
+  margin-right: 2px;
+  background: var(--line-soft);
 }
 
 .win-btn {

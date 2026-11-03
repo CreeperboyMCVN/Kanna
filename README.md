@@ -48,8 +48,9 @@ your choice of AI provider.
   and stores the answers as short facts in `memory.json` (never secrets).
   The facts ride along with every new conversation's system prompt, and you
   can inspect/clear them in ⚙ Settings → Memory.
-- **Speech-to-text** — hold/toggle the 🎤 button to transcribe locally with
-  Vosk; final text is inserted into the composer.
+- **Speech-to-text** — 🎤 in the composer transcribes locally with
+  Vosk (click to talk, click again to insert); final text lands in the input
+  as if typed.
 - **Text-to-speech** — Kanna can speak her replies: built-in OS voices
   (`speechSynthesis`), cloud engines (ElevenLabs, OpenAI TTS, Azure Speech,
   Google Cloud TTS), or local Piper (default model `resources/piper/en_US.onnx`,

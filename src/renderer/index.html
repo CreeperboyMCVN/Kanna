@@ -176,9 +176,8 @@
   <div id="app">
     <header>
       <span class="brand"><span class="brand-fox">🦊</span><span class="brand-name">Kanna</span></span>
-      <span class="spacer"></span>
       <span id="status" class="status" title="Checking configuration…"></span>
-      <button id="btn-mic" class="icon-btn" type="button" aria-label="Speech to text" title="Hold-ish click to transcribe (push to talk)">🎤</button>
+      <span class="spacer"></span>
       <button id="btn-mute" class="icon-btn" type="button" aria-label="Mute TTS" title="Mute TTS">🔊</button>
       <button id="btn-history" class="icon-btn" type="button" aria-label="History" title="History">🕘</button>
       <button id="btn-settings" class="icon-btn" type="button" aria-label="Settings" title="Settings">⚙</button>
@@ -198,6 +197,7 @@
         <div id="turn-main" class="turn-main"></div>
         <div id="turn-tap" class="turn-tap"></div>
         <form id="composer" class="composer">
+          <button id="btn-mic" class="icon-btn mic-btn" type="button" aria-label="Speech to text" aria-pressed="false" title="Speech to text — click to talk, click again to insert, Esc cancels">🎤</button>
           <textarea id="input" rows="1" placeholder="Say something…"></textarea>
           <button id="send" type="submit" aria-label="Send" title="Send (Enter)"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
         </form>

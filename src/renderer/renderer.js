@@ -461,6 +461,13 @@
       return;
     }
 
+    // If speech is still being captured, bail out of it quietly — the user
+    // chose to send what they typed, so never inject a late transcript.
+    if (sttRecording) {
+      window.kanna.sttCancel?.();
+      stopStt(false);
+    }
+
     inputEl.value = '';
     autoGrow();
 
@@ -789,7 +796,9 @@
       autoGrow();
       inputEl.focus();
       toast('Transcribed');
-    } else if (!transcript) {
+    } else if (insertTranscript && !transcript) {
+      // Only the "insert on stop" path reports silence — explicit cancels
+      // (Esc, sending instead) stay quiet.
       toast('No speech detected');
     }
   }
