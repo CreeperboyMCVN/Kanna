@@ -111,6 +111,15 @@ py -3 -m pip install piper-tts onnxruntime vosk PyInstaller
 - `vosk` — the local STT server (`resources/stt/stt_server.py`).
 - `PyInstaller` — builds the freezeable Piper server (step 3).
 
+Optional — NVIDIA GPU acceleration for Piper:
+
+```powershell
+py -3 -m pip install "piper-tts[onnx-cuda]"
+```
+
+With CUDA available, Settings → Voice → **Piper GPU** makes synthesis run on the
+GPU; when drivers or the CUDA runtime are missing, the server falls back to CPU.
+
 ### 2. Piper voice model (~130 MB, never committed)
 
 Download the `en_US-high` voice from the
