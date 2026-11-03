@@ -921,3 +921,9 @@ header .win-controls {
 .piper-test-btn {
   width: 50%;
 }
+
+#tts-muted {
+  width: auto;
+  padding: 6px 10px;
+  display: inline-flex;
+}
