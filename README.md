@@ -54,9 +54,11 @@ your choice of AI provider.
 - **Text-to-speech** — Kanna can speak her replies: built-in OS voices
   (`speechSynthesis`), cloud engines (ElevenLabs, OpenAI TTS, Azure Speech,
   Google Cloud TTS), or local Piper (default model `resources/piper/en_US.onnx`,
-  speaker `746`). Piper now prefers a persistent local HTTP server for speed and,
+  downloaded from the [piper-voices `en_US` libritts-high voice](
+  https://huggingface.co/rhasspy/piper-voices/tree/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/libritts/high),
+  speaker `746`). Piper prefers a persistent local HTTP server for speed and,
   if present, the optional `kanna-piper-server.exe` bundle. Pick the
-  provider/voice/rate/pitch in ⚙ Settings → Brain, test Piper there, mute from
+  provider/voice/rate/pitch in ⚙ Settings → Voice, test Piper there, mute from
   the header toggle, and reply typing is paced to the spoken duration.
 - **Mood + speech speed, decided by the model** — every reply is one JSON
   object `{"mood":"…","speed":…,"hold":…,"text":"…"}`. The mood picks which
@@ -91,17 +93,55 @@ Electron's `safeStorage` (DPAPI on Windows) and decrypted only in memory;
 plaintext keys from older installs migrate automatically. They are never
 sent anywhere except to the provider you chose.
 
-## Packaging
+## Packaging — from Python packages to the Electron build
+
+Kanna's local voice stack uses prepared artifacts, not npm modules: the
+Piper/STT servers are plain Python sources and the optional
+`kanna-piper-server.exe` freezes them with PyInstaller; electron-builder then
+packs the Electron app around them.
+
+### 1. Python prerequisites
+
+```powershell
+py -3 -m pip install piper-tts onnxruntime vosk PyInstaller
+```
+
+- `piper-tts` + `onnxruntime` — the Piper TTS server (`resources/piper/piper_server.py`).
+- `vosk` — the local STT server (`resources/stt/stt_server.py`).
+- `PyInstaller` — builds the freezeable Piper server (step 3).
+
+### 2. Piper voice model (~130 MB, never committed)
+
+Download the `en_US-high` voice from the
+[piper-voices libritts/high tree](
+https://huggingface.co/rhasspy/piper-voices/tree/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/libritts/high)
+— grab both the `.onnx` and its `.onnx.json`, drop them into
+`resources/piper/` as `en_US.onnx` + `en_US.onnx.json`. These files are
+gitignored and stay on your machine only (`git-filter-repo` history already
+excludes them from the published repo).
+
+### 3. Build the Piper server executable (optional but recommended)
+
+```powershell
+npm run piper:build
+```
+
+Runs PyInstaller against `resources/piper/piper_server.py` and writes
+`resources/piper/kanna-piper-server.exe` (gitignored). When that exe exists,
+Piper runs without a system Python at all; without it, the app spawns the
+Python from step 1.
+
+### 4. Electron build
 
 ```powershell
 npm install
-npm run piper:build   # optional: build resources/piper/kanna-piper-server.exe (requires Python + PyInstaller)
-npm run dist          # current platform -> dist/
-npm run dist -- --win # explicit Windows NSIS installer
+npm run dist            # Windows NSIS installer -> dist/
+npm run dist -- --win   # explicit Windows target
 ```
 
-Piper runs from Python by default; if `kanna-piper-server.exe` is present it is
-preferred and removes the need for a system Python install.`
+`resources/piper/**` and `resources/stt/**` are `asarUnpack`ed, so the
+installed app finds the exe, the model, and the server scripts outside
+`app.asar` and can spawn them.
 
 ## Project structure
 
