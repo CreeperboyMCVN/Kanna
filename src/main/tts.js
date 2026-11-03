@@ -181,7 +181,7 @@ async function resolveBundledPiperModel() {
 }
 
 async function ttsPiper({ text, voice = '', rate = 1, keys = {} }) {
-  const command = keys.piperCommand || 'python';
+  const command = keys.piperCommand || 'py';
   let model = (keys.piperModel || '').trim();
   if (!model) model = await resolveBundledPiperModel();
   const dataDir = keys.piperDataDir || '';

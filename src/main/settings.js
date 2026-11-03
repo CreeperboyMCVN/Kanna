@@ -61,6 +61,31 @@ const MARKER = 'enc:v1:';
 let cache = null;
 let warnedEncrypt = false;
 
+// Older app builds could persist credentials wrapped as
+// { shouldReEncrypt, result } objects instead of plain strings. Normalize
+// those back to strings so the UI and the encryption migration work.
+function unwrapLegacyKeyWrappers(data) {
+  for (const group of KEY_FIELDS) {
+    const v = data[group]?.apiKey;
+    if (v && typeof v === 'object' && typeof v.result === 'string') {
+      data[group].apiKey = v.result;
+    } else if (v && typeof v === 'object') {
+      data[group].apiKey = '';
+    }
+  }
+  if (data.tts && typeof data.tts === 'object') {
+    for (const field of TTS_KEY_FIELDS) {
+      const v = data.tts[field];
+      if (v && typeof v === 'object' && typeof v.result === 'string') {
+        data.tts[field] = v.result;
+      } else if (v && typeof v === 'object') {
+        data.tts[field] = '';
+      }
+    }
+  }
+  return data;
+}
+
 function settingsFile() {
   return path.join(app.getPath('userData'), 'settings.json');
 }
@@ -109,7 +134,7 @@ async function getSettings() {
     } catch {
       // fresh store
     }
-    cache = merge(DEFAULT_SETTINGS, raw);
+    cache = unwrapLegacyKeyWrappers(merge(DEFAULT_SETTINGS, raw));
 
     // Migrate: decrypt blobs into memory; any plaintext keys the app
     // upgraded with get re-encrypted on disk once, right now.
@@ -144,7 +169,7 @@ async function getSettings() {
 }
 
 async function save(patch) {
-  const next = merge(await getSettings(), patch || {});
+  const next = unwrapLegacyKeyWrappers(merge(await getSettings(), patch || {}));
   next.provider = PROVIDERS.includes(next.provider) ? next.provider : 'openai';
   cache = next;
   await persist();

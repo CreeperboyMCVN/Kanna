@@ -251,7 +251,7 @@
       azureKey: tts.azureKey || '',
       azureRegion: tts.azureRegion || '',
       googleKey: tts.googleKey || '',
-      piperCommand: tts.piperCommand || 'python',
+      piperCommand: tts.piperCommand || 'py',
       piperModel: tts.piperModel || '',
       piperDataDir: tts.piperDataDir || '',
     };

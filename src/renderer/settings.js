@@ -72,6 +72,11 @@
       els.key.focus();
       showTab('brain');
       loadMemory();
+    }).catch((err) => {
+      // Never leave the drawer silently dead — say why it didn't open.
+      const msg = (err?.message || 'Settings could not be loaded.').replace(/^Error: /, '');
+      window.dispatchEvent(new CustomEvent('kanna:toast', { detail: msg }));
+      console.error('[settings open]', err);
     });
   }
 
@@ -89,10 +94,11 @@
   document.getElementById('btn-models').addEventListener('click', async () => {
     const btn = document.getElementById('btn-models');
     const list = document.getElementById('model-list');
-    const old = btn.textContent;
+    const icon = btn.querySelector('i');
+    const idleIcon = icon ? icon.className : 'fa-solid fa-arrow-rotate-right';
 
     btn.disabled = true;
-    btn.textContent = '…';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
     try {
       const { models } = await window.kanna.listModels(draft.provider);
       const ids = [...new Set(models)].sort((a, b) => a.localeCompare(b));
@@ -109,7 +115,7 @@
       window.dispatchEvent(new CustomEvent('kanna:toast', { detail: msg }));
     } finally {
       btn.disabled = false;
-      btn.textContent = old;
+      btn.innerHTML = `<i class="${idleIcon}"></i>`;
     }
   });
 
@@ -193,16 +199,19 @@
     els.hint.textContent = meta.hint;
     els.key.placeholder = meta.keyPlaceholder;
     els.model.placeholder = meta.modelPlaceholder;
-    els.key.value = perProvider.apiKey || '';
-    els.model.value = perProvider.model || '';
+    els.key.value = typeof perProvider.apiKey === 'string' ? perProvider.apiKey : '';
+    els.model.value = typeof perProvider.model === 'string' ? perProvider.model : '';
     els.baseUrlField.hidden = p !== 'custom';
     if (p === 'custom') els.baseUrl.value = perProvider.baseUrl || '';
+    // Model suggestions came from the previously selected provider's listing —
+    // they are stale now, so the datalist starts over.
+    document.getElementById('model-list').replaceChildren();
     els.persona.value = draft.persona || '';
     els.key.type = 'password';
     els.eye.innerHTML = '<i class="fa-solid fa-eye"></i>';
 
     // --- TTS ---
-    const t = draft.tts || (draft.tts = { provider:'builtin', voice:'', rate:1, pitch:1, muted:false, openaiKey:'', elevenlabsKey:'', azureKey:'', azureRegion:'', googleKey:'', piperCommand:'python', piperModel:'', piperDataDir:'' });
+    const t = draft.tts || (draft.tts = { provider:'builtin', voice:'', rate:1, pitch:1, muted:false, openaiKey:'', elevenlabsKey:'', azureKey:'', azureRegion:'', googleKey:'', piperCommand:'py', piperModel:'', piperDataDir:'' });
     els.ttsProvider.value = t.provider || 'builtin';
     els.ttsRate.value = t.rate ?? 1;
     els.ttsRateVal.textContent = Number(t.rate ?? 1).toFixed(1);
@@ -214,7 +223,7 @@
     els.ttsAzureKey.value = t.azureKey || '';
     els.ttsAzureRegion.value = t.azureRegion || '';
     els.ttsGoogleKey.value = t.googleKey || '';
-    els.ttsPiperCommand.value = t.piperCommand || 'python';
+    els.ttsPiperCommand.value = t.piperCommand || 'py';
     els.ttsPiperModel.value = t.piperModel || '';
     els.ttsPiperDatadir.value = t.piperDataDir || '';
 
@@ -265,7 +274,7 @@
         azureKey: draft.tts?.azureKey || '',
         azureRegion: draft.tts?.azureRegion || '',
         googleKey: draft.tts?.googleKey || '',
-        piperCommand: draft.tts?.piperCommand || 'python',
+        piperCommand: draft.tts?.piperCommand || 'py',
         piperModel: draft.tts?.piperModel || '',
         piperDataDir: draft.tts?.piperDataDir || '',
       },
@@ -388,7 +397,7 @@
           rate: Number(els.ttsRate.value) || 1,
           pitch: Number(els.ttsPitch.value) || 1,
           keys: {
-            piperCommand: els.ttsPiperCommand.value || 'python',
+            piperCommand: els.ttsPiperCommand.value || 'py',
             piperModel: els.ttsPiperModel.value || '',
             piperDataDir: els.ttsPiperDatadir.value || '',
           },
