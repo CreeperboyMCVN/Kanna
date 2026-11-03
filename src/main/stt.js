@@ -16,6 +16,7 @@ function resolvePythonExecutable(command) {
 
 function sttServerScriptPath() {
   const candidates = [
+    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'resources', 'stt', 'stt_server.py'),
     path.join(process.resourcesPath || '', 'stt', 'stt_server.py'),
     path.join(__dirname, '..', '..', 'resources', 'stt', 'stt_server.py'),
   ];

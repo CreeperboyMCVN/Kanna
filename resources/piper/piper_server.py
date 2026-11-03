@@ -8,11 +8,20 @@ ONNX model is loaded a single time instead of on every TTS call.
 import argparse
 import io
 import json
+import os
 import sys
+import threading
 import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from piper import PiperVoice, SynthesisConfig
+
+
+class _State:
+    server = None
+
+
+STATE = _State()
 
 
 def make_handler(voice):
@@ -38,7 +47,15 @@ def make_handler(voice):
                 self._send_json(404, {"error": "not found"})
 
         def do_POST(self):
-            if self.path.rstrip("/") not in ("/tts", "/synthesize"):
+            route = self.path.split("?", 1)[0].rstrip("/")
+            if route == "/shutdown":
+                # Lets the app stop the server cleanly: the serving process
+                # exits itself, so a PyInstaller onefile parent+child pair
+                # never gets left behind by an external tree kill.
+                self._send_json(200, {"ok": True})
+                threading.Thread(target=STATE.server.shutdown, daemon=True).start()
+                return
+            if route not in ("/tts", "/synthesize"):
                 self._send_json(404, {"error": "not found"})
                 return
             try:
@@ -96,12 +113,14 @@ def main():
 
     handler = make_handler(voice)
     httpd = ThreadingHTTPServer((args.host, args.port), handler)
+    STATE.server = httpd
     actual_port = httpd.server_port
     print(f"READY http://{args.host}:{actual_port}", flush=True)
     try:
         httpd.serve_forever()
     finally:
         httpd.server_close()
+        os._exit(0)
 
 
 if __name__ == "__main__":

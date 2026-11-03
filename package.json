@@ -22,6 +22,10 @@
       "assets/**/*",
       "resources/**/*"
     ],
+    "asarUnpack": [
+      "resources/piper/**",
+      "resources/stt/**"
+    ],
     "win": {
       "target": "nsis",
       "icon": "assets/icon.png"

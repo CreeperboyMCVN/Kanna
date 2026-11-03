@@ -173,6 +173,7 @@ function getElectronAppPath() {
 async function resolveBundledPiperModel() {
   const candidates = [
     path.join(__dirname, '..', '..', 'resources', 'piper', 'en_US.onnx'),
+    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'resources', 'piper', 'en_US.onnx'),
     path.join(process.resourcesPath || '', 'piper', 'en_US.onnx'),
     path.join(process.resourcesPath || '', 'piper', 'model.onnx'),
     path.join(getElectronAppPath() || '', 'resources', 'piper', 'en_US.onnx'),
@@ -283,6 +284,33 @@ async function speak({ text, provider, voice = '', rate = 1, pitch = 1, keys = {
 
 let piperServer = { proc: null, url: null, starting: null };
 
+// PyInstaller --onefile builds (kanna-piper-server.exe) run as a parent
+// bootloader process plus a child that actually serves. Killing only the
+// direct PID orphans the child, and killing the root with hard kill wins
+// the race against taskkill's own tree walk. Order matters: try the
+// graceful /shutdown first (the child exits itself, then the parent
+// bootloader follows), then tree-kill, and hard-kill as a last resort.
+function killPiperProcessTree(pid) {
+  if (!pid) return;
+  if (process.platform === 'win32') {
+    try {
+      spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+    } catch { /* fall through to plain kill */ }
+    return;
+  }
+  try { process.kill(pid, 'SIGKILL'); } catch { /* ignore */ }
+}
+
+function killReplicaIfStillAlive(pid) {
+  if (!pid) return;
+  setTimeout(() => {
+    try {
+      process.kill(pid, 0);      // throws ESRCH when gone
+      process.kill(pid, 'SIGKILL');
+    } catch { /* already gone */ }
+  }, 2500);
+}
+
 function resolvePythonExecutable(command) {
   const first = String(command || 'python').trim().split(/\\s+/)[0];
   const base = path.basename(first).toLowerCase().replace(/\.(exe|cmd|bat)$/i, '');
@@ -292,7 +320,7 @@ function resolvePythonExecutable(command) {
 
 function resolveBundledPiperServerExe() {
   const candidates = [
-    path.join(process.resourcesPath || '', 'piper', 'kanna-piper-server.exe'),
+    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'resources', 'piper', 'kanna-piper-server.exe'),
     path.join(__dirname, '..', '..', 'resources', 'piper', 'kanna-piper-server.exe'),
   ];
   return candidates.find((p) => p && fs.existsSync(p)) || '';
@@ -300,7 +328,8 @@ function resolveBundledPiperServerExe() {
 
 function piperServerScriptPath() {
   const candidates = [
-    path.join(process.resourcesPath || '', 'piper', 'piper_server.py'),
+    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'resources', 'stt', 'stt_server.py'),
+    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'resources', 'piper', 'piper_server.py'),
     path.join(__dirname, '..', '..', 'resources', 'piper', 'piper_server.py'),
   ];
   return candidates.find((p) => p && fs.existsSync(p)) || '';
@@ -314,10 +343,7 @@ async function ensurePiperServer(keys = {}) {
     } catch {
       // stale/terminated; restart below
     }
-    if (piperServer.proc) {
-      try { piperServer.proc.kill(); } catch { /* ignore */ }
-    }
-    piperServer = { proc: null, url: null, starting: null };
+    stopPiperServer();
   }
   if (piperServer.starting) return await piperServer.starting;
 
@@ -382,10 +408,19 @@ async function ensurePiperServer(keys = {}) {
 }
 
 function stopPiperServer() {
-  if (piperServer.proc) {
-    try { piperServer.proc.kill(); } catch { /* ignore */ }
-  }
+  const server = piperServer;
   piperServer = { proc: null, url: null, starting: null };
+  if (!server.proc && !server.url && !server.starting) return;
+
+  // 1. Graceful suicide of the serving child (and its onefile parent).
+  if (server.url) {
+    try { fetch(server.url + '/shutdown', { method: 'POST' }).catch(() => { /* ignore */ }); } catch { /* ignore */ }
+  }
+  // 2. Tree kill while the bootloader parent is certainly alive.
+  // 3. Hard-kill fallback if anything survived both.
+  const pid = server.proc?.pid;
+  if (pid) killPiperProcessTree(pid);
+  killReplicaIfStillAlive(pid);
 }
 
 async function speakWithPiperServer(text, voice, keys) {
