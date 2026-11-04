@@ -336,7 +336,7 @@ function createReplyReader() {
 const REPLY_FORMAT = [
   'Reply protocol — answer with a single JSON object and nothing else (no markdown fences, no words before or after it), with the keys in exactly this order:',
   '{"mood":"…","speed":…,"hold":…,"text":"…"}',
-  '- mood: the emotion this reply carries: neutral, happy, sad, angry, shy, surprise, dizzy, or strained.',
+  '- mood: the emotion this reply carries: neutral, happy, sad, angry, shy, surprise, dizzy, strained, teasing, or bored.',
   '- speed: how the text should feel spoken: 0.7 hushed/soothing, 1 normal, 1.8 excited.',
   '- hold: whether the emotion stays on your face after the reply. true keeps it until your next reply changes it; false (or omit) eases back to neutral after a few seconds. Lasting feelings (sad, angry, shy, dizzy) tend to hold; fleeting ones (happy, surprise) usually don\'t.',
   '- text: your reply as the user should see it. It is inside JSON, so write newlines as \\n and escape double quotes as \\".',

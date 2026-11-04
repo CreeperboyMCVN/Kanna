@@ -81,6 +81,16 @@ Backlog of things not built yet. Pick from the top when starting something new.
 
 ## Completed recently (v0.1.3)
 
+- [x] **New emotes: teasing + bored, dozing still** — two new emote pairs
+  (`teasing`, `bored`, with `-speak` variants) wired into `EMOTES`,
+  `MOOD_ALIASES`, the keyword `MOOD_RULES` fallback, the protocol's mood
+  list, and the affect engine (`MOOD_DIMS` + `FAMILY_ALIASES`; teaser
+  words like `smirk`/`mischievous` → teasing, `meh`/`unimpressed`/`sleepy`
+  → bored). Non-mood art lives in `assets/still/`: after ~3 min idle
+  (nothing held, not busy) the renderer shows `assets/still/sleep.png`;
+  any pointer/key activity or new turn wakes her back to neutral.
+  Tone-note for user teasing now suggests the `teasing` mood.
+
 - [x] **Mood system — model directs the mood (history-aware)** — every chat
   system prompt now carries a standing `Emotional direction` block: the
   model judges mood from the whole recent history (not per-message), keeps

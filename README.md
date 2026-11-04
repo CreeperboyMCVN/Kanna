@@ -63,7 +63,7 @@ your choice of AI provider.
   the header toggle, and reply typing is paced to the spoken duration.
 - **Mood + speech speed, decided by the model** — every reply is one JSON
   object `{"mood":"…","speed":…,"hold":…,"text":"…"}`. The mood picks which
-  of the 8 emotes she wears (set *before* she starts talking), speed scales
+  of the 10 emotes she wears (set *before* she starts talking), speed scales
   the typing pace (0.7 hushed → 1.8 excited), and `hold: true` keeps that
   emotion on her face across turns instead of easing back to neutral after
   a few seconds. Replies that don't follow the protocol degrade gracefully

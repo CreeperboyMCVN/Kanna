@@ -21,7 +21,7 @@ Current state (Nov 2026): chat, settings, memory, tray/hotkey, turn-box UI, TTS,
   - `src/main/tts.js` — built-in speechSynthesis or cloud (ElevenLabs, OpenAI, Azure, Google); Piper runs CLI or persistent HTTP server (`resources/piper/piper_server.py` / `kanna-piper-server.exe`). Supports `--gpu`; CUDA DLLs are staged automatically.
   - `src/preload/preload.js` — `window.kanna` bridge.
   - `src/renderer/` — `index.html`, `style.css`, `renderer.js`, `settings.js`.
-- Renderer uses all 16 emote files and `assets/background/1.png`.
+- Renderer uses all 20 emote files (10 pairs: angry, bored, dizzy, happy, neutral, sad, shy, strained, surprise, teasing) + the `assets/still/sleep.png` dozing still and `assets/background/1.png`.
 - History is in-memory only; each request sends last 24 messages plus persona.
 
 ## Product behavior
@@ -44,7 +44,7 @@ Current state (Nov 2026): chat, settings, memory, tray/hotkey, turn-box UI, TTS,
 ## Assets
 
 - Emotions are pairs: `<emotion>.png` and `<emotion>-speak.png`.
-- Current emotions: angry, dizzy, happy, neutral, sad, shy, strained, surprise.
+- Current emotions: angry, bored, dizzy, happy, neutral, sad, shy, strained, surprise, teasing. Plus a `still/` folder for art outside the mood cycle (`sleep.png` — shown after ~3 min idle, wakes on any interaction).
 - Backgrounds numbered in `assets/background/`.
 - `assets/icon.ico` tray/window; `assets/icon.png` 512x512 installer icon.
 

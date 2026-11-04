@@ -14,7 +14,7 @@
   const statusEl = $('#status');
   const toastEl = $('#toast');
 
-  const EMOTES = ['angry', 'dizzy', 'happy', 'neutral', 'sad', 'shy', 'strained', 'surprise'];
+  const EMOTES = ['angry', 'bored', 'dizzy', 'happy', 'neutral', 'sad', 'shy', 'strained', 'surprise', 'teasing'];
 
   // Crisp icons for the send/stop button (innerHTML, since textContent swaps would clash).
   const SEND_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg>';
@@ -27,9 +27,11 @@
     { emotion: 'angry',    re: /\b(angry|mad|furious|hate|annoyed)\b|😠|😤/i },
     { emotion: 'surprise', re: /\b(wow|whoa|surprised|shocking|unbelievable)\b|😲|😱/i },
     { emotion: 'shy',      re: /\b(blush|shy|embarrassed|flattered)\b|😳/i },
+    { emotion: 'teasing',  re: /\b(just kidding|jk|teasing|hehe)\b|:p|😏|😜/i },
+    { emotion: 'bored',    re: /\b(meh|bored|whatever|dull|unimpressed)\b/i },
   ];
 
-  // Loose mood words models come up with → the 8 available emotes; anything
+  // Loose mood words models come up with → the 10 available emotes; anything
   // unknown stays neutral.
   const MOOD_ALIASES = {
     joy: 'happy', joyful: 'happy', excited: 'happy', cheerful: 'happy', glad: 'happy',
@@ -38,7 +40,11 @@
     mad: 'angry', annoyed: 'angry', furious: 'angry', grumpy: 'angry', frustrated: 'angry',
     blush: 'shy', blushing: 'shy', embarrassed: 'shy', bashful: 'shy', flustered: 'shy',
     shocked: 'surprise', shock: 'surprise', amazed: 'surprise', astonished: 'surprise',
-    confused: 'dizzy', sleepy: 'strained', exhausted: 'strained', tired: 'strained', pain: 'strained',
+    confused: 'dizzy', exhausted: 'strained', tired: 'strained', pain: 'strained',
+    teasing: 'teasing', tease: 'teasing', playful: 'teasing', smirking: 'teasing',
+    smug: 'teasing', mischievous: 'teasing', cheeky: 'teasing', sly: 'teasing',
+    bored: 'bored', meh: 'bored', unimpressed: 'bored', listless: 'bored',
+    yawn: 'bored', yawning: 'bored', drowsy: 'bored', sleepy: 'bored',
   };
 
   let settings = null;
@@ -86,10 +92,41 @@
   // --- emote --------------------------------------------------------------
 
   function setEmote(emotion, speaking) {
+    // The sleepy "still" lives outside the emote pairs — a single PNG for
+    // when she's been left alone. Not a mood: any interaction wakes her.
+    if (emotion === 'sleep') {
+      const src = '../../assets/still/sleep.png';
+      if (sprite.getAttribute('src') !== src) sprite.src = src;
+      sprite.classList.remove('speaking');
+      sleeping = true;
+      return;
+    }
+    if (sleeping) sleeping = false;
     const src = `../../assets/emotes/${emotion}${speaking ? '-speak' : ''}.png`;
     if (sprite.getAttribute('src') !== src) sprite.src = src;
     sprite.classList.toggle('speaking', !!speaking);
+    armSleep();
   }
+
+  // Left alone long enough (and nothing held/underway), she dozes off on
+  // the still image. Pointer/key activity or a new turn wakes her.
+  const SLEEP_AFTER_MS = 180000;
+  let sleepTimer = null;
+  let sleeping = false;
+  function armSleep() {
+    clearTimeout(sleepTimer);
+    sleepTimer = setTimeout(() => {
+      if (phase === 'idle' && !busy && !holdFace) setEmote('sleep', false);
+    }, SLEEP_AFTER_MS);
+  }
+  function wake() {
+    if (sleeping) setEmote('neutral', false);
+    else armSleep();
+  }
+  for (const ev of ['pointerdown', 'keydown']) {
+    window.addEventListener(ev, wake, { passive: true });
+  }
+  window.addEventListener('focus', wake);
 
   // While the model is thinking there are no words yet — stay idle; the
   // speaking variant kicks in only once real tokens start arriving.
