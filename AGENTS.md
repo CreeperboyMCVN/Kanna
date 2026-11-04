@@ -13,6 +13,7 @@ Current state (Nov 2026): chat, settings, memory, tray/hotkey, turn-box UI, TTS,
   - `src/main/settings.js` — settings store at `%APPDATA%\Kanna\settings.json`; API/TTS keys encrypted at rest with safeStorage (DPAPI), plaintext in memory, migration on load. Includes `tts.piperUseGpu`.
   - `src/main/memory.js` — durable facts in `%APPDATA%\Kanna\memory.json`; post-turn extraction; injected into system prompt.
   - `src/main/ai.js` — providers (OpenAI, custom, OpenCode, Anthropic, Gemini), SSE streaming, model listing, JSON reply protocol reader.
+  - `src/main/affect.js` — internal affect engine (Phase 1 of the mood system plan): per-family valence/arousal/socialEnergy targets, per-turn blend with jump caps, time decay toward the neutral baseline, alias mapping for loose mood words, stop/interrupt nudges, and one-line `[affect]` logs for transitions and turn ends. In-memory only; reply protocol and renderer emotes unchanged.
   - `src/main/stt.js` — local Vosk STT server client (PCM streaming, partial/final results; prefers the frozen `kanna-stt-server.exe`, falls back to `py` + `resources/stt/stt_server.py`).
   - `src/main/log.js` — rotating file logger (`%APPDATA%\Kanna\logs\kanna.log`).
   - `src/main/tts.js` — built-in speechSynthesis or cloud (ElevenLabs, OpenAI, Azure, Google); Piper runs CLI or persistent HTTP server (`resources/piper/piper_server.py` / `kanna-piper-server.exe`). Supports `--gpu`; CUDA DLLs are staged automatically.

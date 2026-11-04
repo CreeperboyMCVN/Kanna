@@ -1,6 +1,7 @@
 'use strict';
 
 const { getSettings, DEFAULT_PERSONA } = require('./settings');
+const affect = require('./affect');
 
 let active = null;
 
@@ -17,6 +18,9 @@ async function runChat(messages, emit, system, opts = {}) {
   const controller = new AbortController();
   if (registerInActive) active = { controller };
 
+  // Phase 1 affect: fade whatever the previous turn left behind toward
+  // baseline before the new mood arrives (idle time works in here).
+  affect.beginTurn();
   let text = '';
   const reader = plain ? null : createReplyReader();
   const push = (chunk) => {
@@ -26,7 +30,13 @@ async function runChat(messages, emit, system, opts = {}) {
       return;
     }
     const meta = reader.feed(chunk); // announces mood/speed as soon as they arrive
-    if (meta) emit('chat:meta', meta);
+    if (meta) {
+      emit('chat:meta', meta);
+      // Internal-only observation — the emitted meta above is untouched.
+      if (meta.mood || meta.hold !== undefined || meta.speed) {
+        affect.observe(meta, 'reply');
+      }
+    }
     const t = reader.takeText();
     if (t) {
       text += t;
@@ -61,10 +71,15 @@ async function runChat(messages, emit, system, opts = {}) {
       await streamOpenAI(settings, messages, push, controller.signal, systemPrompt);
     }
     flush();
+    affect.endTurn();
     return { stopped: false, text };
   } catch (err) {
     flush();
-    if (isAbort(err)) return { stopped: true, text };
+    if (isAbort(err)) {
+      affect.onInterrupt('interrupt');
+      affect.endTurn();
+      return { stopped: true, text };
+    }
     throw err;
   } finally {
     if (registerInActive) active = null;

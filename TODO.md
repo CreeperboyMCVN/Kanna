@@ -81,6 +81,16 @@ Backlog of things not built yet. Pick from the top when starting something new.
 
 ## Completed recently (v0.1.3)
 
+- [x] **Mood system — Phase 1 (affect engine)** — new `src/main/affect.js`:
+  internal valence/arousal/socialEnergy per emote family, blend toward the
+  model's chosen mood with per-turn jump caps, time decay back to the neutral
+  baseline (held moods decay slower), alias table for loose mood words
+  (`furious`, `cheerful`, …), stop/interrupt nudges, and `[affect]` log lines
+  for every family transition + one turn-end snapshot line. In-memory only —
+  reply protocol, `chat:meta`, and the 8 emote pairs are unchanged (renderer
+  untouched). Phase 2 (trigger priorities, error stress, persistent affinity)
+  still to do.
+
 - [x] **Packaging split** — `npm run dist:all` cleans `dist/`, then builds normal Piper + app + CUDA Piper + CUDA app. Installers: `Kanna Setup X.Y.Z.exe` and `Kanna-Setup-X.Y.Z-cuda.exe`.
 - [x] **Piper GPU (NVIDIA)** — `--gpu` flag with CUDA/cuDNN staged via `_add_cuda_dll_dirs()`; Settings → Voice **Piper GPU** checkbox (`tts.piperUseGpu`); server stops on save and the next speak rebuilds it with refreshed flags.
 - [x] **File logging** — rotating `kanna.log` under `%APPDATA%\Kanna\logs`, including startup snapshot, server lifecycle (with deliberate-stop vs. crash distinction), IPC traces, and global exception/rejection handlers.
