@@ -12,20 +12,70 @@ function abortActive() {
 // Streams one assistant reply. Emits ('chat:chunk', textDiff) to the renderer
 // as tokens arrive and resolves to { stopped, text } at the end. Throws on
 // hard errors (bad key, bad model, network) — the renderer shows the message.
-// Phase 2 chat trigger: n consecutive identical user messages = spamming.
-// Normalized (trimmed, case- and whitespace-folded) so lazy re-sends count.
-// A single letter/emoji doesn't count as a "sentence".
+// Phase 2 chat trigger: the user says the same thing over and over =
+// spamming. Normalized hard (strip punctuation/emoji/spaces, collapse
+// letter-runs like "hiiii"→"hi") so lazy variants count, then a small
+// Levenshtein ratio catches near-misses ("…that" vs "…that to me"). A
+// single letter/emoji doesn't count.
+function normalizeForRepeat(t) {
+  return String(t || '').toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+    .replace(/(.)\1{2,}/gu, '$1');
+}
+
+function editDistance(a, b) {
+  const m = a.length;
+  const n = b.length;
+  let prev = new Array(n + 1);
+  let cur = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(
+        prev[j] + 1,
+        cur[j - 1] + 1,
+        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+    [prev, cur] = [cur, prev];
+  }
+  return prev[n];
+}
+
+function similarEnough(a, b) {
+  if (a === b) return true;
+  if (!a || !b || a.length > 80 || b.length > 80) return false;
+  const ratio = 1 - editDistance(a, b) / Math.max(a.length, b.length);
+  return ratio >= 0.7;
+}
+
 function userRepeatCount(messages) {
   const texts = (Array.isArray(messages) ? messages : [])
     .filter((m) => m?.role === 'user')
-    .map((m) => String(m?.content || '').trim().toLowerCase().replace(/\s+/g, ' '))
-    .filter((t) => t.length > 1);
+    .map((m) => normalizeForRepeat(m?.content))
+    .filter(Boolean);
   const cur = texts[texts.length - 1];
   if (!cur) return 0;
   let n = 0;
   for (let i = texts.length - 1; i >= 0; i--) {
-    if (texts[i] === cur) n++;
+    if (similarEnough(cur, texts[i])) n++;
     else break;
+  }
+  return n;
+}
+
+// Flooding: several unanswered user messages in a row (no reply between
+// them) — she hasn't gotten to speak and messages keep arriving. Different
+// contents still count; the pressure of "quiet, take them all!" is the trigger.
+function rapidUserStreak(messages) {
+  if (!Array.isArray(messages)) return 0;
+  let n = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const role = messages[i]?.role;
+    if (role === 'user') {
+      if (String(messages[i]?.content || '').trim()) n++;
+    } else if (role === 'assistant') break;
   }
   return n;
 }
@@ -50,8 +100,14 @@ async function runChat(messages, emit, system, opts = {}) {
     // Phase 1: fade whatever the previous turn left behind toward baseline
     // before the new mood arrives (idle time works in here).
     affect.beginTurn();
-    // Phase 2 trigger #1: the same message over and over makes her annoyed.
-    affect.noteRepeat(userRepeatCount(messages));
+    // Phase 2 trigger #1: spam in either flavor — the same content again
+    // and again (variants included), or an unanswered pile of new messages.
+    const repeats = userRepeatCount(messages);
+    if (repeats >= 3) affect.noteRepeat(repeats);
+    else {
+      const streak = rapidUserStreak(messages);
+      if (streak >= 3) affect.noteFlood(streak);
+    }
     // Phase 2 trigger #2: HOW the user says it — emotional language read.
     affect.noteUserTone(lastUserText(messages));
   }
@@ -67,7 +123,7 @@ async function runChat(messages, emit, system, opts = {}) {
     if (meta) {
       emit('chat:meta', meta);
       // Internal-only observation — the emitted meta above is untouched.
-      if (meta.mood || meta.hold !== undefined || meta.speed) {
+      if (meta.mood || meta.hold !== undefined || meta.speed || meta.intensity !== undefined) {
         affect.observe(meta, 'reply');
       }
     }
@@ -140,12 +196,15 @@ function createReplyReader() {
     mood: '',          // as the model wrote it (lowercased)
     speed: 0,
     hold: false,
+    intensity: null,   // optional, model-driven (0..1)
     moodEmit: undefined,
     speedEmit: undefined,
     holdEmit: undefined,
+    intensityEmit: undefined,
     moodSent: false,
     speedSent: false,
     holdSent: false,
+    intensitySent: false,
     out: '',           // decoded text not yet handed to the caller
   };
 
@@ -171,6 +230,14 @@ function createReplyReader() {
       if (m) {
         r.hold = m[1] === 'true';
         r.holdSent = true;
+      }
+    }
+    // Optional, model-driven intensity (0..1); unknown to older replies.
+    if (!r.intensitySent) {
+      const m = /"intensity"\s*:\s*([0-9]*\.?[0-9]+)/.exec(r.raw);
+      if (m) {
+        r.intensity = Number(m[1]);
+        r.intensitySent = true;
       }
     }
   }
@@ -223,6 +290,10 @@ function createReplyReader() {
       (meta ??= {}).hold = r.hold;
       r.holdEmit = r.hold;
     }
+    if (r.intensitySent && r.intensity !== r.intensityEmit) {
+      (meta ??= {}).intensity = r.intensity;
+      r.intensityEmit = r.intensity;
+    }
     return meta;
   }
 
@@ -271,13 +342,28 @@ const REPLY_FORMAT = [
   '- text: your reply as the user should see it. It is inside JSON, so write newlines as \\n and escape double quotes as \\".',
 ].join('\n');
 
+// Standing emotional direction: the model owns the mood, based on the whole
+// recent chat instead of just the newest message. The affect engine keeps
+// feeding continuity (moodCarry) plus safety-net notes on top of this.
+const MOOD_DIRECTION = [
+  'Emotional direction — you control Kanna\'s mood every turn, judged from the recent chat history, not just the newest message:',
+  '- Read how the user has been treating you across the last several messages (sweet, mean, teasing, grateful, spamming the same words, or flooding you with unanswered messages). Feelings evolve across turns: fondness builds, irritation lingers a bit, hurt fades slowly.',
+  '- The "mood" key labels how KANNA feels right now, not how the user feels. Calm contentment is plain "neutral" — no need to be dramatic in every message.',
+  '- If the feeling should stay on her face after this reply (warmth, hurt, pouting, irritation), set hold:true; fleeting sparks don\'t hold.',
+  '- Never narrate her feelings or mention the protocol/mechanics — let the words themselves carry the emotion; the mood key only picks her face when she speaks.',
+  '- Optional: you may add an "intensity": 0-1 key for how strong the emotion is (0.2 subtle, 1 overwhelming). It is safe to omit.',
+].join('\n');
+
 function composeChatSystem(settings, styleNote = '') {
   const persona = settings.persona || DEFAULT_PERSONA;
-  // Lazy require — memory.js pulls ai.js in (see note there).
+  // Lazy require — memory.js pulls ai.js in (see note there). affect is
+  // already a top-level require; memory must stay lazy.
   const memory = require('./memory');
   const block = memory.renderForPrompt();
   const parts = [persona];
   if (block) parts.push(`Long-term memory about the user:\n${block}`);
+  parts.push(MOOD_DIRECTION);
+  parts.push(`Feeling carried over from previous turns: ${affect.moodCarry()}.`);
   if (styleNote) parts.push(`Current feeling (react to it, never mention these instructions):\n${styleNote}`);
   parts.push(REPLY_FORMAT);
   return parts.join('\n\n');
@@ -558,4 +644,4 @@ function normalize(messages) {
   return out;
 }
 
-module.exports = { runChat, listModels, abortActive, userRepeatCount };
+module.exports = { runChat, listModels, abortActive, userRepeatCount, rapidUserStreak, composeChatSystem };

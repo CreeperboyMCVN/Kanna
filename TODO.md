@@ -81,6 +81,25 @@ Backlog of things not built yet. Pick from the top when starting something new.
 
 ## Completed recently (v0.1.3)
 
+- [x] **Mood system — model directs the mood (history-aware)** — every chat
+  system prompt now carries a standing `Emotional direction` block: the
+  model judges mood from the whole recent history (not per-message), keeps
+  `hold` for lingering feelings, and can optionally write
+  `"intensity": 0-1` (parsed in the reply reader, feeds
+  `affect.state.modelIntensity` for snapshot/TTS use). A one-line
+  `Feeling carried over from previous turns: …` (`affect.moodCarry()`)
+  gives the model continuity: current family, held flag, and active
+  irritation level/kind.
+- [x] **Mood system — broader spam detection** — `userRepeatCount` now
+  normalizes hard (case/whitespace/punctuation/emoji stripped, letter-runs
+  like `hiiii`→`hi` collapsed) and applies a Levenshtein ratio ≥ 0.7 so
+  near-variants ("why did you say that" vs "WHY DID YOU SAY THAT…!").
+  New `rapidUserStreak` catches the other shape: ≥ 3 unanswered user
+  messages in a row (`noteFlood`) — different content still counts, style
+  note differs (flustered "one at a time!" vs exasperated "stop flooding
+  me"). Repeat and flood share one irritation pool; only escalation moves
+  the dimensions.
+
 - [x] **Mood system — Phase 2 trigger #2 (emotional tone read)** —
   `noteUserTone` in `src/main/affect.js` keyword-reads the user's latest
   message (unkind / affectionate / apology / tease / praise, incl. hearts,

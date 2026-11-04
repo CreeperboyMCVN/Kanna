@@ -55,10 +55,11 @@ const FAMILY_ALIASES = {
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const clampJ = (x) => Math.min(1, Math.max(-1, x));
 
-// Phase 2 trigger #1 — annoying chat behavior. The user hammering the same
-// sentence in (consecutive repeats) is a high-priority social trigger: it
-// leaves Kanna irritable even after the repeats stop (cools one level per
-// turn). noteRepeat() feeds the emotion, styleNote() turns it into an
+// Phase 2 trigger #1 — annoying chat behavior. Two spam flavors share the
+// same irritation pool (0 calm … 3 fed up):
+//   • repeat — the same content again and again (variants included), and
+//   • flood — a pile of unanswered user messages arriving back to back.
+// noteRepeat()/noteFlood() feed the emotion, styleNote() turns it into an
 // in-character instruction the model receives in its system prompt.
 const state = {
   family: 'neutral',
@@ -68,8 +69,10 @@ const state = {
   s: 0.40,  // social energy
   lastAt: Date.now(),
   turnsSinceHeld: 0,
-  annoyed: 0, // 0 calm … 3 fed up (consecutive same-message repeats minus 2)
+  annoyed: 0,  // 0 calm … 3 fed up (spam level, see noteSpam)
+  spamKind: null, // 'repeat' | 'flood' — which flavor holds the irritation
   tone: { kind: null, level: 0 }, // last emotional tone read from the user
+  modelIntensity: null, // optional "intensity" 0..1 the model itself reports
 };
 
 const r1 = (x) => Math.round(x * 10) / 10;
@@ -111,12 +114,15 @@ function tick(now = Date.now()) {
 
 // One turn begins: idle time since the last turn first decays what was left
 // behind, so tiny gaps keep a mood alive and long gaps land her near baseline.
-// Irritation (message spam) and leftover user tone cool here: one level per turn.
+// Irritation (spam) and leftover user tone cool here: one level per turn.
 function beginTurn() {
   tick();
   if (state.annoyed > 0) {
     state.annoyed--;
-    if (state.annoyed === 0) log.info('[affect]', 'annoyance cooled — user stopped repeating');
+    if (state.annoyed === 0) {
+      state.spamKind = null;
+      log.info('[affect]', 'irritation cooled — user stopped spamming');
+    }
   }
   if (state.tone.level > 0) {
     state.tone.level--;
@@ -124,39 +130,75 @@ function beginTurn() {
   }
 }
 
-// n = consecutive repeats of the user's current message (3+ = spamming).
-function noteRepeat(n) {
-  if (!Number.isFinite(n) || n < 3) return snapshot();
-  const level = Math.min(3, n - 2); // 3 repeats → 1 … 6+ → 3 (capped)
-  if (level === state.annoyed) return snapshot();
+// Shared irritation pool for both spam flavors. Only escalations (and clean
+// kind swaps) move the dims, so refreshes at the same level don't double-dip.
+function noteSpam(kind, level) {
+  if (level <= 0) return snapshot();
+  const prev = state.annoyed;
+  if (level < prev) return snapshot(); // existing stronger reaction stands
+  const same = level === prev && state.spamKind === kind;
+  state.spamKind = kind;
+  if (same) return snapshot();
+  const bump = level - prev;
   const before = { v: state.v, a: state.a };
   state.annoyed = level;
-  // Irritation: heavier with each extra repeat, capped so she sulks, never rages.
-  state.v = clampJ(state.v - 0.12 * level);
-  state.a = clamp01(state.a + 0.08 * level);
+  // Irritation: heavier with each extra bump, capped so she sulks, never rages.
+  state.v = clampJ(state.v - 0.12 * bump);
+  state.a = clamp01(state.a + 0.08 * bump);
   state.lastAt = Date.now();
-  log.info('[affect]', `repeat x${n}: annoyed level ${level} `
+  log.info('[affect]', `${kind} spam level ${state.annoyed}: `
     + `v ${r2(before.v)}→${r2(state.v)} a ${r2(before.a)}→${r2(state.a)}`);
   return snapshot();
 }
 
-// Full style note for the system prompt: annoyance (repeat spam) and/or the
-// user's emotional tone, joined. Only present when something is actually
-// happening, so normal chat sends the exact same prompt as before.
+// n = consecutive (fuzzy) repeats of the user's same message (3+ = spamming).
+function noteRepeat(n) {
+  if (!Number.isFinite(n) || n < 3) return snapshot();
+  return noteSpam('repeat', Math.min(3, n - 2)); // 3 repeats → 1 … 6+ → 3 (capped)
+}
+
+// n = unanswered user messages stacked up with no reply in between.
+function noteFlood(n) {
+  if (!Number.isFinite(n) || n < 3) return snapshot();
+  return noteSpam('flood', n < 5 ? 1 : 2); // crowded → flustered; 5+ → exasperated
+}
+
+// Full style note for the system prompt: spam irritation (either flavor)
+// and/or the user's emotional tone, joined. Only present when something is
+// actually happening, so normal chat sends the exact same prompt as before.
 function styleNote() {
   const notes = [];
   if (state.annoyed > 0) {
-    const lines = {
+    const repeatLines = {
       1: 'Right now, in character: the user has repeated the same message three times — Kanna is getting visibly annoyed. Keep replying as her, call it out plainly or with a strained sigh (mood "strained"). Do not repeat yourself either.',
       2: 'Right now, in character: the user keeps hammering the same message — Kanna is fed up with it. React like a real person would: flustered, exasperated, maybe a little scolding (mood "strained" or "angry", speed higher). Stay Kanna, stay kind underneath.',
       3: 'Right now, in character: the user has now spammed the same message six or more times — Kanna has had ENOUGH. She says so sharply (mood "angry", speed 1.5+), maybe pouts or threatens to ignore further repeats. Still in character, still caring underneath.',
     };
-    const l = lines[state.annoyed];
+    const floodLines = {
+      1: 'Right now, in character: the user rapid-fired several messages without letting you answer. Kanna gets flustered and a bit overwhelmed (mood "strained") — she half-jokes about them sending everything at once ("one at a time!" energy).',
+      2: 'Right now, in character: the user keeps firing message after message with no pause — Kanna is genuinely overwhelmed and a bit exasperated (mood "strained" or "angry", speed up). She tells them to stop flooding her and let her breathe.',
+    };
+    const lines = state.spamKind === 'flood' ? floodLines : repeatLines;
+    const l = lines[Math.min(state.annoyed, Object.keys(lines).length)];
     if (l) notes.push(l);
   }
   const tone = toneNote();
   if (tone) notes.push(tone);
   return notes.join(' ');
+}
+
+// One-line continuity statement for the system prompt: what she is still
+// feeling from previous turns (family/spam), so the model evolves moods
+// across the chat history instead of resetting every message.
+function moodCarry() {
+  const bits = [];
+  if (state.held) bits.push(`${state.family} (held from before)`);
+  else if (state.family !== 'neutral') bits.push(`${state.family} left over from the last turn`);
+  if (state.annoyed > 0) {
+    bits.push(`irritated ${state.spamKind === 'flood' ? 'by message flooding' : 'by the repeated message'} (level ${state.annoyed}/3)`);
+  }
+  if (!bits.length) return 'calm and neutral';
+  return bits.join('; ');
 }
 
 // --- Phase 2 trigger #2 — how the user SAYS things ---------------------------
@@ -255,6 +297,13 @@ function observe(meta, source = 'reply') {
   const dims = MOOD_DIMS[target];
   const sameFamily = target === state.family;
 
+  // Optional model-written intensity (Phase 3 protocol field). Kept even
+  // when only reported softly: a model that follows it can drive her face
+  // harder than the blended dims (see snapshot). Nothing required from it.
+  if (typeof meta?.intensity === 'number' && meta.intensity >= 0 && meta.intensity <= 1) {
+    state.modelIntensity = r2(meta.intensity);
+  }
+
   // Per-turn jump caps (plan: no wild one-turn whiplash).
   const CAP_V = 0.65;
   const CAP_A = 0.50;
@@ -333,7 +382,9 @@ function snapshot() {
     valence: r2(state.v),
     arousal: r2(state.a),
     socialEnergy: r2(state.s),
-    intensity: r2(clamp01(Math.abs(state.v) * 0.5 + Math.max(0, state.a) * 0.5)),
+    intensity: state.modelIntensity != null
+      ? state.modelIntensity
+      : r2(clamp01(Math.abs(state.v) * 0.5 + Math.max(0, state.a) * 0.5)),
     targets: dims,
     ageMs: Date.now() - state.lastAt,
     turnsSinceHeld: state.turnsSinceHeld,
@@ -348,7 +399,9 @@ function reset() {
   state.held = false;
   state.turnsSinceHeld = 0;
   state.annoyed = 0;
+  state.spamKind = null;
   state.tone = { kind: null, level: 0 };
+  state.modelIntensity = null;
   const b = MOOD_DIMS.neutral;
   state.v = b.v;
   state.a = b.a;
@@ -364,8 +417,10 @@ module.exports = {
   beginTurn,
   observe,
   noteRepeat,
+  noteFlood,
   noteUserTone,
   styleNote,
+  moodCarry,
   onInterrupt,
   endTurn,
   tick,
