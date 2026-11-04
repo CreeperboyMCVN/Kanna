@@ -2,6 +2,8 @@
 
 Kanna — a desktop AI companion app. Stack: JavaScript + Electron, packaged with electron-builder, managed with npm.
 
+**Rule:** build and publish (installer builds, version bumps, GitHub releases) only when explicitly asked.
+
 ## Repo state
 
 Current state (Nov 2026): chat, settings, memory, tray/hotkey, turn-box UI, TTS, STT, persistent Piper server, and CUDA installer builds are implemented. File logging is available under `%APPDATA%\\Kanna\\logs`. There is no automated test suite or CI yet.
