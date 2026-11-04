@@ -1,5 +1,6 @@
 # Kanna 🦊
 
+![Kanna](./assets/README/1.png)
 A tiny desktop AI companion built with Electron. Kanna lives in a small window,
 reacts to her own replies with expressions, and you can chat with her through
 your choice of AI provider.
