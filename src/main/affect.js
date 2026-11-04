@@ -55,8 +55,11 @@ const FAMILY_ALIASES = {
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const clampJ = (x) => Math.min(1, Math.max(-1, x));
 
-// In-memory session state — deliberately not persisted yet (persistence +
-// long-term affinity is Phase 2+). Starts every launch at baseline.
+// Phase 2 trigger #1 — annoying chat behavior. The user hammering the same
+// sentence in (consecutive repeats) is a high-priority social trigger: it
+// leaves Kanna irritable even after the repeats stop (cools one level per
+// turn). noteRepeat() feeds the emotion, styleNote() turns it into an
+// in-character instruction the model receives in its system prompt.
 const state = {
   family: 'neutral',
   held: false,
@@ -65,6 +68,7 @@ const state = {
   s: 0.40,  // social energy
   lastAt: Date.now(),
   turnsSinceHeld: 0,
+  annoyed: 0, // 0 calm … 3 fed up (consecutive same-message repeats minus 2)
 };
 
 const r1 = (x) => Math.round(x * 10) / 10;
@@ -106,8 +110,42 @@ function tick(now = Date.now()) {
 
 // One turn begins: idle time since the last turn first decays what was left
 // behind, so tiny gaps keep a mood alive and long gaps land her near baseline.
+// Irritation from message-spam also cools here: one level per turn.
 function beginTurn() {
   tick();
+  if (state.annoyed > 0) {
+    state.annoyed--;
+    if (state.annoyed === 0) log.info('[affect]', 'annoyance cooled — user stopped repeating');
+  }
+}
+
+// n = consecutive repeats of the user's current message (3+ = spamming).
+function noteRepeat(n) {
+  if (!Number.isFinite(n) || n < 3) return snapshot();
+  const level = Math.min(3, n - 2); // 3 repeats → 1 … 6+ → 3 (capped)
+  if (level === state.annoyed) return snapshot();
+  const before = { v: state.v, a: state.a };
+  state.annoyed = level;
+  // Irritation: heavier with each extra repeat, capped so she sulks, never rages.
+  state.v = clampJ(state.v - 0.12 * level);
+  state.a = clamp01(state.a + 0.08 * level);
+  state.lastAt = Date.now();
+  log.info('[affect]', `repeat x${n}: annoyed level ${level} `
+    + `v ${r2(before.v)}→${r2(state.v)} a ${r2(before.a)}→${r2(state.a)}`);
+  return snapshot();
+}
+
+// Style note for the system prompt: only present when she is actually
+// irritated, so normal chat stays untouched. Tells the model to stay in
+// character while reacting to the repeated messsages.
+function styleNote() {
+  if (state.annoyed <= 0) return '';
+  const lines = {
+    1: 'Right now, in character: the user has repeated the same message three times — Kanna is getting visibly annoyed. Keep replying as her, call it out plainly or with a strained sigh (mood "strained"). Do not repeat yourself either.',
+    2: 'Right now, in character: the user keeps hammering the same message — Kanna is fed up with it. React like a real person would: flustered, exasperated, maybe a little scolding (mood "strained" or "angry", speed higher). Stay Kanna, stay kind underneath.',
+    3: 'Right now, in character: the user has now spammed the same message six or more times — Kanna has had ENOUGH. She says so sharply (mood "angry", speed 1.5+), maybe pouts or threatens to ignore further repeats. Still in character, still caring underneath.',
+  };
+  return lines[state.annoyed] || '';
 }
 
 // Feed the model's reply protocol meta ({ mood, speed, hold }). Blends the
@@ -183,7 +221,7 @@ function describe() {
   const intensity = clamp01(Math.abs(state.v - dims.v) * 0.15
     + Math.abs(state.v) * 0.35
     + Math.max(0, state.a - 0.35) * 0.5);
-  return `${state.family}${state.held ? ' (held)' : ''} `
+  return `${state.family}${state.held ? ' (held)' : ''}${state.annoyed ? ` annoyed=${state.annoyed}` : ''} `
     + `v=${r2(state.v)} a=${r2(state.a)} s=${r2(state.s)}`
     + ` intensity=${r2(intensity)}`;
 }
@@ -209,6 +247,7 @@ function reset() {
   state.family = 'neutral';
   state.held = false;
   state.turnsSinceHeld = 0;
+  state.annoyed = 0;
   const b = MOOD_DIMS.neutral;
   state.v = b.v;
   state.a = b.a;
@@ -223,6 +262,8 @@ module.exports = {
   FAMILY_ALIASES,
   beginTurn,
   observe,
+  noteRepeat,
+  styleNote,
   onInterrupt,
   endTurn,
   tick,

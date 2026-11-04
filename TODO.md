@@ -81,6 +81,14 @@ Backlog of things not built yet. Pick from the top when starting something new.
 
 ## Completed recently (v0.1.3)
 
+- [x] **Mood system — Phase 2 first trigger (repeat-spam annoyance)** —
+  consecutive identical user messages (case/whitespace-normalized, 3+ in a
+  row) raise Kanna's annoyance level (1–3, capped) in `src/main/affect.js`:
+  internal valence/arousal nudge plus a level-matched style note injected
+  into the system prompt so she visibly calls it out in character
+  (strained → fed-up → angry). Annoyance cools one level per turn without
+  repeats. `[affect] repeat xN` log line per escalation.
+
 - [x] **Mood system — Phase 1 (affect engine)** — new `src/main/affect.js`:
   internal valence/arousal/socialEnergy per emote family, blend toward the
   model's chosen mood with per-turn jump caps, time decay back to the neutral

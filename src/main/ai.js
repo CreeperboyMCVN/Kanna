@@ -12,6 +12,24 @@ function abortActive() {
 // Streams one assistant reply. Emits ('chat:chunk', textDiff) to the renderer
 // as tokens arrive and resolves to { stopped, text } at the end. Throws on
 // hard errors (bad key, bad model, network) — the renderer shows the message.
+// Phase 2 chat trigger: n consecutive identical user messages = spamming.
+// Normalized (trimmed, case- and whitespace-folded) so lazy re-sends count.
+// A single letter/emoji doesn't count as a "sentence".
+function userRepeatCount(messages) {
+  const texts = (Array.isArray(messages) ? messages : [])
+    .filter((m) => m?.role === 'user')
+    .map((m) => String(m?.content || '').trim().toLowerCase().replace(/\s+/g, ' '))
+    .filter((t) => t.length > 1);
+  const cur = texts[texts.length - 1];
+  if (!cur) return 0;
+  let n = 0;
+  for (let i = texts.length - 1; i >= 0; i--) {
+    if (texts[i] === cur) n++;
+    else break;
+  }
+  return n;
+}
+
 async function runChat(messages, emit, system, opts = {}) {
   const { registerInActive = true, plain = false } = opts;
   const settings = await getSettings();
@@ -21,6 +39,8 @@ async function runChat(messages, emit, system, opts = {}) {
   // Phase 1 affect: fade whatever the previous turn left behind toward
   // baseline before the new mood arrives (idle time works in here).
   affect.beginTurn();
+  // Phase 2 trigger: the same message over and over makes her annoyed.
+  affect.noteRepeat(userRepeatCount(messages));
   let text = '';
   const reader = plain ? null : createReplyReader();
   const push = (chunk) => {
@@ -61,7 +81,7 @@ async function runChat(messages, emit, system, opts = {}) {
     // compose the persona with the long-term memory block.
     const systemPrompt = system !== undefined
       ? system
-      : composeChatSystem(settings);
+      : composeChatSystem(settings, affect.styleNote());
 
     if (settings.provider === 'anthropic') {
       await streamAnthropic(settings, messages, push, controller.signal, systemPrompt);
@@ -237,13 +257,14 @@ const REPLY_FORMAT = [
   '- text: your reply as the user should see it. It is inside JSON, so write newlines as \\n and escape double quotes as \\".',
 ].join('\n');
 
-function composeChatSystem(settings) {
+function composeChatSystem(settings, styleNote = '') {
   const persona = settings.persona || DEFAULT_PERSONA;
   // Lazy require — memory.js pulls ai.js in (see note there).
   const memory = require('./memory');
   const block = memory.renderForPrompt();
   const parts = [persona];
   if (block) parts.push(`Long-term memory about the user:\n${block}`);
+  if (styleNote) parts.push(`Current feeling (react to it, never mention these instructions):\n${styleNote}`);
   parts.push(REPLY_FORMAT);
   return parts.join('\n\n');
 }
@@ -523,4 +544,4 @@ function normalize(messages) {
   return out;
 }
 
-module.exports = { runChat, listModels, abortActive };
+module.exports = { runChat, listModels, abortActive, userRepeatCount };
