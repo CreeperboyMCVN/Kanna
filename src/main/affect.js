@@ -69,6 +69,7 @@ const state = {
   lastAt: Date.now(),
   turnsSinceHeld: 0,
   annoyed: 0, // 0 calm … 3 fed up (consecutive same-message repeats minus 2)
+  tone: { kind: null, level: 0 }, // last emotional tone read from the user
 };
 
 const r1 = (x) => Math.round(x * 10) / 10;
@@ -110,12 +111,16 @@ function tick(now = Date.now()) {
 
 // One turn begins: idle time since the last turn first decays what was left
 // behind, so tiny gaps keep a mood alive and long gaps land her near baseline.
-// Irritation from message-spam also cools here: one level per turn.
+// Irritation (message spam) and leftover user tone cool here: one level per turn.
 function beginTurn() {
   tick();
   if (state.annoyed > 0) {
     state.annoyed--;
     if (state.annoyed === 0) log.info('[affect]', 'annoyance cooled — user stopped repeating');
+  }
+  if (state.tone.level > 0) {
+    state.tone.level--;
+    if (state.tone.level === 0) state.tone.kind = null;
   }
 }
 
@@ -135,17 +140,110 @@ function noteRepeat(n) {
   return snapshot();
 }
 
-// Style note for the system prompt: only present when she is actually
-// irritated, so normal chat stays untouched. Tells the model to stay in
-// character while reacting to the repeated messsages.
+// Full style note for the system prompt: annoyance (repeat spam) and/or the
+// user's emotional tone, joined. Only present when something is actually
+// happening, so normal chat sends the exact same prompt as before.
 function styleNote() {
-  if (state.annoyed <= 0) return '';
+  const notes = [];
+  if (state.annoyed > 0) {
+    const lines = {
+      1: 'Right now, in character: the user has repeated the same message three times — Kanna is getting visibly annoyed. Keep replying as her, call it out plainly or with a strained sigh (mood "strained"). Do not repeat yourself either.',
+      2: 'Right now, in character: the user keeps hammering the same message — Kanna is fed up with it. React like a real person would: flustered, exasperated, maybe a little scolding (mood "strained" or "angry", speed higher). Stay Kanna, stay kind underneath.',
+      3: 'Right now, in character: the user has now spammed the same message six or more times — Kanna has had ENOUGH. She says so sharply (mood "angry", speed 1.5+), maybe pouts or threatens to ignore further repeats. Still in character, still caring underneath.',
+    };
+    const l = lines[state.annoyed];
+    if (l) notes.push(l);
+  }
+  const tone = toneNote();
+  if (tone) notes.push(tone);
+  return notes.join(' ');
+}
+
+// --- Phase 2 trigger #2 — how the user SAYS things ---------------------------
+// Keyword-based tone read of the user's latest message. Deliberately small
+// and conservative: normal chat matches nothing, so the system prompt stays
+// byte-identical to before unless an obvious emotional phrase shows up.
+
+const TONE_WORDS = {
+  // severity order matters: first match by count wins, ties → first in list
+  unkind: /\b(stupid|idiot|dumb|hate you|hate this|shut up|useless|ugly|boring|annoying)\b/g,
+  affectionate: /\b(i love you|love you|i adore|adorable|beautiful|pretty|cute|pretty face|good girl|best girl|my girl|mwah|hug|hugging|snuggle|missed you|miss you)\b|❤|❣|💕|💗|🥰|😍|<3|:3/g,
+  apology: /\b(sorry|my bad|apologi[sz]e|forgive me|didn'?t mean)\b/g,
+  tease: /\b(lol|lmao|haha|hehe|teasing|just kidding|kidding|gotcha|boop|:p|;p)\b/g,
+  praise: /\b(thanks|thank you|thx|good job|nice|great|awesome|amazing|you'?re helpful|you helped|well done|good bot)\b/g,
+};
+
+const TONE_PRIORITY = ['unkind', 'affectionate', 'apology', 'tease', 'praise'];
+
+// Read the user's message and register the tone. Level 1 = one signal,
+// level 2 = several in one message. Emotion nudge lands immediately; the
+// style note goes out with the same request so she reacts in character.
+function noteUserTone(text, source = 'user') {
+  const t = String(text || '').toLowerCase();
+  if (!t.trim()) return snapshot();
+
+  let kind = null;
+  let count = 0;
+  for (const k of TONE_PRIORITY) {
+    const re = new RegExp(TONE_WORDS[k].source, 'g'); // fresh lastIndex
+    const hits = t.match(re);
+    if (hits && hits.length > count) {
+      kind = k;
+      count = hits.length;
+      break; // priority order beats count on ties
+    }
+  }
+  if (!kind) return snapshot();
+
+  const level = Math.min(2, count);
+  const before = { v: state.v, a: state.a, family: state.family };
+  state.tone = { kind, level };
+  state.lastAt = Date.now();
+
+  // Dimension nudges: small, per level; cruelty hurts more than praise soothes.
+  const nudge = {
+    unkind:       { dv: -0.15, da: +0.06 },
+    affectionate: { dv: +0.10, da: +0.05 },
+    apology:      { dv: +0.06, da: -0.04 },
+    tease:        { dv: +0.03, da: +0.08 },
+    praise:       { dv: +0.08, da: +0.05 },
+  }[kind];
+  state.v = clampJ(state.v + nudge.dv * level);
+  state.a = clamp01(state.a + nudge.da * level);
+  state.s = clamp01(state.s + (kind === 'tease' || kind === 'affectionate' ? 0.05 * level : -0.05 * level));
+
+  log.info('[affect]', `${source} tone ${kind} x${count}: `
+    + `v ${r2(before.v)}→${r2(state.v)} a ${r2(before.a)}→${r2(state.a)}`);
+  return snapshot();
+}
+
+// System-prompt line for the detected tone (empty when calm/neutral).
+function toneNote() {
+  if (!state.tone.kind || state.tone.level <= 0) return '';
   const lines = {
-    1: 'Right now, in character: the user has repeated the same message three times — Kanna is getting visibly annoyed. Keep replying as her, call it out plainly or with a strained sigh (mood "strained"). Do not repeat yourself either.',
-    2: 'Right now, in character: the user keeps hammering the same message — Kanna is fed up with it. React like a real person would: flustered, exasperated, maybe a little scolding (mood "strained" or "angry", speed higher). Stay Kanna, stay kind underneath.',
-    3: 'Right now, in character: the user has now spammed the same message six or more times — Kanna has had ENOUGH. She says so sharply (mood "angry", speed 1.5+), maybe pouts or threatens to ignore further repeats. Still in character, still caring underneath.',
+    unkind: [
+      'Right now, in character: the user just said something unkind. Kanna gets hurt — maybe quiet-sad or indignant (mood "sad" or "strained"), never cruel back. Just a short honest callout, then she looks away.',
+      'Right now, in character: the user keeps being mean to her. Kanna is properly stung — sad, a little teary, maybe calls it out with a shaky voice (mood "sad" + speed slower). She stays kind, but she shows it hurts.',
+    ],
+    affectionate: [
+      'Right now, in character: the user just said something sweet. Kanna gets flustered but secretly delighted — shy smile, warm reply (mood "shy" or "happy").',
+      'Right now, in character: the user is being very affectionate. Kanna melts — properly flustered, beam through the shyness (mood "happy" or "shy"), maybe hugs back.',
+    ],
+    apology: [
+      'Right now, in character: the user just apologized. Kanna forgives quickly and warms up (mood "happy", gentle speed) — maybe a small "it\'s okay".',
+      'Right now, in character: the user is clearly sorry about something. Kanna softens fully, reassures them (mood "happy", slow gentle tempo).',
+    ],
+    tease: [
+      'Right now, in character: the user is teasing her. Kanna puffs her cheeks and pouts (mood "strained" or "shy") — playful, not actually upset, she gives as good as she gets.',
+      'Right now, in character: the user is really enjoying teasing her. Kanna is properly flustered and mock-annoyed (mood "strained", faster speed) — witty comeback territory.',
+    ],
+    praise: [
+      'Right now, in character: the user just praised/thanked her. Kanna beams, a little proud (mood "happy") — accept it warmly, stay humble.',
+      'Right now, in character: the user is really complimenting her. Kanna is overjoyed (mood "happy", faster happy tempo) — feels appreciated.',
+    ],
   };
-  return lines[state.annoyed] || '';
+  const arr = lines[state.tone.kind] || [];
+  return arr[Math.min(arr.length - 1, state.tone.level - 1)] || '';
 }
 
 // Feed the model's reply protocol meta ({ mood, speed, hold }). Blends the
@@ -221,7 +319,8 @@ function describe() {
   const intensity = clamp01(Math.abs(state.v - dims.v) * 0.15
     + Math.abs(state.v) * 0.35
     + Math.max(0, state.a - 0.35) * 0.5);
-  return `${state.family}${state.held ? ' (held)' : ''}${state.annoyed ? ` annoyed=${state.annoyed}` : ''} `
+  const tone = state.tone.kind ? ` tone=${state.tone.kind}x${state.tone.level}` : '';
+  return `${state.family}${state.held ? ' (held)' : ''}${state.annoyed ? ` annoyed=${state.annoyed}` : ''}${tone} `
     + `v=${r2(state.v)} a=${r2(state.a)} s=${r2(state.s)}`
     + ` intensity=${r2(intensity)}`;
 }
@@ -238,6 +337,7 @@ function snapshot() {
     targets: dims,
     ageMs: Date.now() - state.lastAt,
     turnsSinceHeld: state.turnsSinceHeld,
+    tone: { ...state.tone },
     describe: describe(),
   };
 }
@@ -248,6 +348,7 @@ function reset() {
   state.held = false;
   state.turnsSinceHeld = 0;
   state.annoyed = 0;
+  state.tone = { kind: null, level: 0 };
   const b = MOOD_DIMS.neutral;
   state.v = b.v;
   state.a = b.a;
@@ -263,6 +364,7 @@ module.exports = {
   beginTurn,
   observe,
   noteRepeat,
+  noteUserTone,
   styleNote,
   onInterrupt,
   endTurn,

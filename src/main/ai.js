@@ -30,17 +30,31 @@ function userRepeatCount(messages) {
   return n;
 }
 
+// Last user message raw text (same rule as main.js's copy, for tone reading).
+function lastUserText(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'user') return String(messages[i]?.content || '');
+  }
+  return '';
+}
+
 async function runChat(messages, emit, system, opts = {}) {
   const { registerInActive = true, plain = false } = opts;
   const settings = await getSettings();
   const controller = new AbortController();
   if (registerInActive) active = { controller };
 
-  // Phase 1 affect: fade whatever the previous turn left behind toward
-  // baseline before the new mood arrives (idle time works in here).
-  affect.beginTurn();
-  // Phase 2 trigger: the same message over and over makes her annoyed.
-  affect.noteRepeat(userRepeatCount(messages));
+  // Affect triggers — real chat only (memory extraction passes plain:true
+  // and system, and must not move her mood or decay anything).
+  if (!plain) {
+    // Phase 1: fade whatever the previous turn left behind toward baseline
+    // before the new mood arrives (idle time works in here).
+    affect.beginTurn();
+    // Phase 2 trigger #1: the same message over and over makes her annoyed.
+    affect.noteRepeat(userRepeatCount(messages));
+    // Phase 2 trigger #2: HOW the user says it — emotional language read.
+    affect.noteUserTone(lastUserText(messages));
+  }
   let text = '';
   const reader = plain ? null : createReplyReader();
   const push = (chunk) => {

@@ -81,6 +81,17 @@ Backlog of things not built yet. Pick from the top when starting something new.
 
 ## Completed recently (v0.1.3)
 
+- [x] **Mood system — Phase 2 trigger #2 (emotional tone read)** —
+  `noteUserTone` in `src/main/affect.js` keyword-reads the user's latest
+  message (unkind / affectionate / apology / tease / praise, incl. hearts,
+  `<3`, `:3`; severity-ordered so unkind beats sweet). Each tone nudges
+  valence/arousal/social plus emits a level-matched in-character style note
+  (sweet → shy/happy flustered, mean → hurt sad, sorry → warm forgiveness,
+  tease → pouting comeback, praise → beaming happy). Tones cool one level
+  per turn, and `beginTurn`/`noteRepeat`/`noteUserTone` are all skipped for
+  memory-extraction chat runs (`plain: true`) so her mood isn't polluted
+  by background calls.
+
 - [x] **Mood system — Phase 2 first trigger (repeat-spam annoyance)** —
   consecutive identical user messages (case/whitespace-normalized, 3+ in a
   row) raise Kanna's annoyance level (1–3, capped) in `src/main/affect.js`:
