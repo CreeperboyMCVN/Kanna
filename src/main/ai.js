@@ -645,4 +645,4 @@ function normalize(messages) {
   return out;
 }
 
-module.exports = { runChat, listModels, abortActive, userRepeatCount, rapidUserStreak, composeChatSystem };
+module.exports = { runChat, listModels, abortActive, userRepeatCount, rapidUserStreak, composeChatSystem, normalize };
