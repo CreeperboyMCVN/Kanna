@@ -229,7 +229,18 @@
   };
   let shakeFallbackIdx = { dizzy: -1, angry: -1 };
 
-  async function runShakeAI(shakes) {
+  // Shake turns are real conversation moments: the event goes into history
+// as a bracketed user-side note (never displayed), her line as an
+// assistant message — the model can keep referencing the incident later.
+function pushShakeToHistory(n, text) {
+  history.push({
+    role: 'user',
+    content: `*you grabbed Kanna's window and shook her ${n} time${n === 1 ? '' : 's'} back and forth*`,
+  });
+  history.push({ role: 'assistant', content: text });
+}
+
+async function runShakeAI(shakes) {
     const n = Math.max(1, Math.min(24, Number(shakes) || 1));
     // Mid-reply (model or a canned line running): don't stomp the stage.
     if (busy) {
@@ -298,6 +309,7 @@
           speechPhaseActive = false;
           targetCps = TYPE_CPS * liveSpeed;
         }
+        pushShakeToHistory(n, full);
         pending = full;
         phase = 'speaking';
         finishing = true;
@@ -321,6 +333,7 @@
       mainEl.classList.remove('typing');
       moodFlash(mood, true);
       toast(pool[idx]);
+      pushShakeToHistory(n, pool[idx]);
       window.kanna.unfreeze();
       if (wasComposerOpen) openCompose();
       return;
