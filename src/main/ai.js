@@ -89,14 +89,15 @@ function lastUserText(messages) {
 }
 
 async function runChat(messages, emit, system, opts = {}) {
-  const { registerInActive = true, plain = false } = opts;
+  const { registerInActive = true, plain = false, noTriggers = false } = opts;
   const settings = await getSettings();
   const controller = new AbortController();
   if (registerInActive) active = { controller };
 
   // Affect triggers — real chat only (memory extraction passes plain:true
-  // and system, and must not move her mood or decay anything).
-  if (!plain) {
+  // and system; synthetic scene prompts pass noTriggers). Neither kind is
+  // user behavior, so neither may move her mood or decay anything.
+  if (!plain && !noTriggers) {
     // Phase 1: fade whatever the previous turn left behind toward baseline
     // before the new mood arrives (idle time works in here).
     affect.beginTurn();

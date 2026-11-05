@@ -38,9 +38,9 @@ Current state (Nov 2026): chat, settings, memory, tray/hotkey, turn-box UI, TTS,
 
 ## IPC contract
 
-`settings:get`, `settings:save`, `models:list`, `chat:send`, `chat:stop`, `kanna:back`, `memory:get`, `memory:remove`, `memory:clear`, `tts:speak`, `tts:cancel`, `win:min`, `win:close`.
+`settings:get`, `settings:save`, `models:list`, `chat:send`, `chat:stop`, `kanna:back`, `kanna:shakeAsk` (handle), `kanna:unfreeze` (on), `memory:get`, `memory:remove`, `memory:clear`, `tts:speak`, `tts:cancel`, `win:min`, `win:close`. Push events: `chat:chunk`, `chat:meta`, `kanna:shakeLock` (window frozen after a shake burst), `kanna:freezeOff` (unfrozen — reason: `voice done` | `timeout` | `hidden`), `kanna:shake` (unused static-line legacy).
 
-`chat:send` emits `chat:chunk` and `chat:meta` {mood,speed,hold}, resolves `{ stopped, text }`; streaming errors reject. `runChat(messages, emit, system, opts)` supports `registerInActive` and `plain`.
+`chat:send` emits `chat:chunk` and `chat:meta` {mood,speed,hold,intensity?}, resolves `{ stopped, text }`; streaming errors reject. `runChat(messages, emit, system, opts)` supports `registerInActive`, `plain` (no protocol reader), and `noTriggers` (skip affect trigger block — synthetic scene prompts like `kanna:shakeAsk`).
 
 ## Assets
 

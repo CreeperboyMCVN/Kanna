@@ -89,6 +89,22 @@ Backlog of things not built yet. Pick from the top when starting something new.
 
 ## Completed recently (v0.1.3)
 
+- [x] **Shake → freeze → AI reaction flow** — a finished shake burst now
+  freezes the window in place (each `move` event is undone immediately,
+  which also breaks the user's drag), toasts
+  "Position locked until I settle…", and asks the model: main sends
+  `kanna:shakeAsk` with a hidden scene prompt (shake count, dizzy 1–3 /
+  angry 4+, run with `noTriggers:true` so the synthetic prompt can't
+  pollute tone/repeat detection), streaming through the normal
+  `chat:chunk`/`chat:meta` channels. The renderer runs it as a full turn
+  (dots → mood face from the model's own meta → text typed out paced to
+  TTS). When typing + voice are done it calls `kanna:unfreeze`; main
+  releases the position and pushes `kanna:freezeOff` → "position
+  unfrozen" toast. Safety bits: `FREEZE_MAX_MS` 90 s auto-unfreeze,
+  hidden-window instant unfreeze, absence of model/crashes fall back to
+  the canned dizzy/angry pool, composer state restored after the
+  takeover, `busy` shakes defer to the running reply with a toast.
+
 - [x] **Shake reaction** — main counts window-drag direction reversals
   (amplitudes ≥ 14 px within a 600 ms burst, either axis). After the burst
   settles: 1–3 shakes → `dizzy` face + canned line, >3 → `angry` + sterner

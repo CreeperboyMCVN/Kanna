@@ -202,6 +202,144 @@
   // Main pushes shake reactions (dizzy after 1–3 rattles, angry past 3).
   window.kanna.onShake?.((g) => { playCanned(g); });
 
+  // Shake flow: main froze the window and pushed the lock. She answers
+  // with a real model reply (streaming through the normal channels), the
+  // stage runs like a normal turn, and once text + voice finish the
+  // position unlocks (with a toast either way).
+  window.kanna.onShakeLock?.(({ shakes }) => {
+    toast(`Whoa— you shook me ${shakes}×! Position locked until I settle…`);
+    runShakeAI(shakes);
+  });
+  window.kanna.onFreezeOff?.(() => {
+    toast('Kanna settled — position unfrozen.');
+  });
+
+  // Fallback pool if the model can't be reached while frozen (no key,
+  // network hiccup): still gives her a spoken-style line.
+  const SHAKE_FALLBACK = {
+    dizzy: [
+      'ow ow ow— the world won\'t stop spinning… s-stop shaking me…',
+      'kyaa…! Everything\'s all wobbly… whose idea was that, huh?!',
+      'wh— the desk went left, then right, then left again… dizzy…',
+    ],
+    angry: [
+      'HEY! Stop shaking me. Right now. That actually hurts!',
+      'I said STOP! Rattling me around like that — rrrude! One more and I\'m done!',
+    ],
+  };
+  let shakeFallbackIdx = { dizzy: -1, angry: -1 };
+
+  async function runShakeAI(shakes) {
+    const n = Math.max(1, Math.min(24, Number(shakes) || 1));
+    // Mid-reply (model or a canned line running): don't stomp the stage.
+    if (busy) {
+      toast('Too dizzy to talk over my own reply — settling first…');
+      window.kanna.unfreeze();
+      return;
+    }
+
+    const wasComposerOpen = composerOpen;
+    if (wasComposerOpen) {
+      // Stage takeover: the reply needs the big spot.
+      composerOpen = false;
+      composerEl.classList.remove('open');
+      turnEl.classList.remove('composing');
+    }
+
+    cancelSpeech();
+    shouldSpeak = false;
+    speechPhaseActive = false;
+    textFrac = 0;
+    targetCps = 5;
+    text = '';
+    received = '';
+    pending = '';
+    finishing = false;
+    liveMood = 'neutral';
+    liveSpeed = 1;
+    liveHold = null;
+
+    busy = true;
+    phase = 'thinking';
+    sendBtn.innerHTML = STOP_ICON;
+    sendBtn.classList.add('stop');
+    sendBtn.title = 'Stop (shaken!)';
+    setThinking();
+
+    mainEl.classList.remove('error');
+    mainEl.classList.add('typing');
+    mainEl.replaceChildren(makeDots());
+    scrollToBottom(true);
+
+    let failed = false;
+    try {
+      const result = await window.kanna.shakeAsk(n);
+      if (result?.stopped) { shouldSpeak = false; }
+      mainEl.classList.remove('typing');
+      let full = String(result?.text || '').substring(0, 600);
+      if (result?.stopped && full && !/[.…]$/.test(full)) full += ' …';
+      if (!full.trim()) {
+        failed = true; // model answered empty — fall through to canned pool
+      } else {
+        // Word-for-word the send() tail: synthesize voice first, then pace
+        // typing to the speech duration so they finish together.
+        let durMs = 0;
+        const spoken = textForSpeech(full);
+        if (!tts?.muted) {
+          try {
+            const r = await speakChunk(spoken);
+            durMs = r?.durationMs || 0;
+          } catch { /* typing without voice still works */ }
+        }
+        if (durMs > 0) {
+          targetCps = spoken.length / (durMs / 1000);
+          speechPhaseActive = true;
+        } else {
+          speechPhaseActive = false;
+          targetCps = TYPE_CPS * liveSpeed;
+        }
+        pending = full;
+        phase = 'speaking';
+        finishing = true;
+        if (!drainTimer) drainTimer = requestAnimationFrame(pace);
+      }
+    } catch (err) {
+      console.log('[shake]', 'model reply failed:', err?.message || err);
+      failed = true;
+      mainEl.classList.remove('typing');
+    }
+
+    if (failed) {
+      // No model: closed-canned pool keeps her reactive, then unfreeze.
+      const mood = n > 3 ? 'angry' : 'dizzy';
+      const pool = SHAKE_FALLBACK[mood];
+      let idx = Math.floor(Math.random() * pool.length);
+      if (pool.length > 1 && idx === shakeFallbackIdx[mood]) idx = (idx + 1) % pool.length;
+      shakeFallbackIdx[mood] = idx;
+      busy = false;
+      phase = 'idle';
+      mainEl.classList.remove('typing');
+      moodFlash(mood, true);
+      toast(pool[idx]);
+      window.kanna.unfreeze();
+      if (wasComposerOpen) openCompose();
+      return;
+    }
+
+    // Text + voice done (finalize flips busy/phase at the end of pacing).
+    await waitStageIdle(90_000);
+    // Small breather so cloud audio tails don't get cut by the snap-back.
+    setTimeout(() => window.kanna.unfreeze(), 400);
+    if (wasComposerOpen) openCompose();
+  }
+
+  async function waitStageIdle(limitMs) {
+    const start = Date.now();
+    while ((busy || phase !== 'idle') && Date.now() - start < limitMs) {
+      await new Promise((r) => setTimeout(r, 80));
+    }
+  }
+
   // While the model is thinking there are no words yet — stay idle; the
   // speaking variant kicks in only once real tokens start arriving.
   function setThinking() {
