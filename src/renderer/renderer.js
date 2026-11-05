@@ -142,9 +142,25 @@
   // then hands back to the mood flash. Used for welcome-back lines and for
   // shake reactions pushed by main.
   async function playCanned(g) {
-    if (!g?.text || busy || composerOpen || phase !== 'idle') return;
+    if (!g?.text || busy) {
+      console.log('[canned]', 'skip', (!g?.text ? 'no-line' : 'busy'), g?.mood || '');
+      return;
+    }
+    const mood = MOOD_ALIASES[g.mood] || (EMOTES.includes(g.mood) ? g.mood : 'neutral');
+    // Composer is open (fresh session / user typing view): the stage shows
+    // their message, so react as toast + face only instead of a takeover.
+    if (composerOpen) {
+      console.log('[canned]', 'composer open → toast+face', mood);
+      moodFlash(mood, false);
+      toast(g.text);
+      return;
+    }
+    if (phase !== 'idle') {
+      console.log('[canned]', 'skip phase', phase, mood);
+      return;
+    }
 
-    liveMood = MOOD_ALIASES[g.mood] || (EMOTES.includes(g.mood) ? g.mood : 'neutral');
+    liveMood = mood;
     liveSpeed = Math.min(1.8, Math.max(0.7, Number(g.speed) || 1));
     liveHold = null;
     text = '';
