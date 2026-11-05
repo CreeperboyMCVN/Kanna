@@ -137,13 +137,11 @@
   }
   window.addEventListener('focus', wake);
 
-  // She speaks up on her own: plays a main-provided canned greeting through
-  // the same stage machinery as a normal reply (face, typed-out text, TTS),
-  // then hands the turn back to the mood flash. Not pushed into the model
-  // history — this greeting is hers, not part of the conversation.
-  async function sayWelcomeBack(awayMs) {
-    let g = null;
-    try { g = await window.kanna.back(Math.round(awayMs)); } catch { return; }
+  // She speaks up on her own. Shared canned-speech path (no model): sets
+  // the mood face, synthesizes TTS, paces typing to it like a normal reply,
+  // then hands back to the mood flash. Used for welcome-back lines and for
+  // shake reactions pushed by main.
+  async function playCanned(g) {
     if (!g?.text || busy || composerOpen || phase !== 'idle') return;
 
     liveMood = MOOD_ALIASES[g.mood] || (EMOTES.includes(g.mood) ? g.mood : 'neutral');
@@ -177,6 +175,16 @@
     finishing = true;
     if (!drainTimer) drainTimer = requestAnimationFrame(pace);
   }
+
+  // Welcome-back variant: ask main for the tier-matched line first.
+  async function sayWelcomeBack(awayMs) {
+    let g = null;
+    try { g = await window.kanna.back(Math.round(awayMs)); } catch { return; }
+    await playCanned(g);
+  }
+
+  // Main pushes shake reactions (dizzy after 1–3 rattles, angry past 3).
+  window.kanna.onShake?.((g) => { playCanned(g); });
 
   // While the model is thinking there are no words yet — stay idle; the
   // speaking variant kicks in only once real tokens start arriving.

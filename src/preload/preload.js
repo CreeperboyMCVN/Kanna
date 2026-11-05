@@ -21,6 +21,10 @@ contextBridge.exposeInMainWorld('kanna', {
   onMeta: (listener) => {
     ipcRenderer.on('chat:meta', (_e, meta) => listener(meta));
   },
+  // Main-pushed canned reactions (shake dizzy/angry lines).
+  onShake: (listener) => {
+    ipcRenderer.on('kanna:shake', (_e, g) => listener(g));
+  },
   minimize: () => ipcRenderer.send('win:min'),
   close: () => ipcRenderer.send('win:close'),
 

@@ -162,9 +162,93 @@ async function createWindow() {
     settings.save({ window: { x, y } })
       .catch((err) => console.log('[window]', 'position save failed:', err?.message || err));
   };
+
+  // --- shake detector -------------------------------------------------------
+  // Grabbing and rattling the window (rapid back-and-forth drags) is its own
+  // kind of user attention: 1–3 direction reversals in one burst leave her
+  // dizzy, more than 3 makes her properly angry. A burst ends after a short
+  // stillness; cooldown keeps repeated rattling from spamming reactions.
+  const SHAKE_AMP = 14;      // px swing per sample that counts as a fling
+  const SHAKE_QUIET = 600;   // ms of stillness that ends a shake burst
+  const SHAKE_MIN = 1;       // below this: Dragging the window around is not Abuse
+  const SHAKE_COOLDOWN = 6000; // ms after a reaction before the next one fires
+  const shake = { x: null, y: null, dirX: 0, dirY: 0, count: 0, lastAt: 0, quietTimer: null, cooldownUntil: 0 };
+
+  const shakeLines = {
+    dizzy: [
+      'wh-whoa…! The room is spinning… s-stop it…',
+      'kyaa—! My head… everything\'s all wobbly now…',
+      'waaah— I can\'t see straight…! Why would you DO that?!',
+      'so dizzy… the desk just… left… and came back… twice…',
+    ],
+    angry: [
+      'HEY! Enough shaking! That actually hurts, you know!',
+      'Grr— I said stop shaking the window! You\'re rattling my brains loose!',
+      'That\'s it! One more shake and I\'m hiding in the tray for an hour.',
+      'Quit. Rattling. Me. Around. I get dizzy VERY easily, in case you hadn\'t noticed.',
+    ],
+  };
+  let lastLineIdx = { dizzy: -1, angry: -1 };
+
+  function shakeSample(x, y) {
+    const now = Date.now();
+    if (shake.x !== null) {
+      if (now - shake.lastAt > SHAKE_QUIET) {
+        // Fresh burst: re-anchor direction, forget the old count.
+        shake.count = 0;
+        shake.dirX = 0;
+        shake.dirY = 0;
+      } else {
+        const dx = x - shake.x;
+        const dy = y - shake.y;
+        if (Math.abs(dx) >= SHAKE_AMP) {
+          const s = Math.sign(dx);
+          if (shake.dirX !== 0 && s !== shake.dirX) shake.count++;
+          shake.dirX = s;
+        }
+        if (Math.abs(dy) >= SHAKE_AMP) {
+          const s = Math.sign(dy);
+          if (shake.dirY !== 0 && s !== shake.dirY) shake.count++;
+          shake.dirY = s;
+        }
+      }
+    }
+    shake.x = x;
+    shake.y = y;
+    shake.lastAt = now;
+    clearTimeout(shake.quietTimer);
+    shake.quietTimer = setTimeout(shakeBurstEnd, SHAKE_QUIET);
+  }
+
+  // Burst is over: 1–3 shakes → dizzy + a line, >3 → angry. Ghosts the line
+  // through the renderer's canned-speech path (no model), cooldown-gated.
+  function shakeBurstEnd() {
+    const count = shake.count;
+    shake.count = 0;
+    shake.x = null;
+    shake.y = null;
+    shake.dirX = 0;
+    shake.dirY = 0;
+    if (count < SHAKE_MIN || Date.now() < shake.cooldownUntil) return;
+    const mood = count > 3 ? 'angry' : 'dizzy';
+    const pool = shakeLines[mood];
+    let idx = Math.floor(Math.random() * pool.length);
+    if (pool.length > 1 && idx === lastLineIdx[mood]) idx = (idx + 1) % pool.length;
+    lastLineIdx[mood] = idx;
+    const g = { text: pool[idx], mood, speed: mood === 'angry' ? 1.25 : 1.05, shakes: count };
+    shake.cooldownUntil = Date.now() + SHAKE_COOLDOWN;
+    log.info('[shake]', `${count} shakes → ${mood}`);
+    affect.observe({ mood, speed: g.speed, hold: false }, 'shake');
+    if (win && !win.isDestroyed() && win.isVisible()) {
+      win.webContents.send('kanna:shake', g);
+    }
+  }
+
   win.on('moved', () => {
     clearTimeout(moveTimer);
     moveTimer = setTimeout(savePosition, 500);
+    const [x, y] = win.getPosition();
+    shakeSample(x, y);
   });
 
   // The ✕ button hides her to the tray instead of exiting — she keeps

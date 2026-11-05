@@ -60,6 +60,14 @@ Backlog of things not built yet. Pick from the top when starting something new.
   and performance implications need a clear opt-in.
 - [ ] **Playful but harmless "dragging"** — let the pet appear to grab and
   drag an overlay-only object (plushie/icon/branch), not real OS windows.
+- [ ] **Fall out of the stage when shaken too hard (overlay pet tie-in)** —
+  if the user keeps rattling the window past the angry threshold, give
+  Kanna a small random chance to comically "fall out" of the stage: the
+  sprite tumbles off the bottom edge (spin + gravity easing), disappears
+  for a few seconds, then climbs back up scowling. Requires the future
+  overlay pet window / sprite layer (`assets/pet-model/` art is already
+  reserved) or at least a canvas overlay on the main window; must stay
+  scratch-free and reversible, and must never fire while she's busy.
 
 ## Protocol / hardening ideas
 
@@ -80,6 +88,18 @@ Backlog of things not built yet. Pick from the top when starting something new.
   maximize button removed) on purpose.
 
 ## Completed recently (v0.1.3)
+
+- [x] **Shake reaction** — main counts window-drag direction reversals
+  (amplitudes ≥ 14 px within a 600 ms burst, either axis). After the burst
+  settles: 1–3 shakes → `dizzy` face + canned line, >3 → `angry` + sterner
+  line, pushed as `kanna:shake` (new preload bridge `onShake`) and played
+  through the shared `playCanned` stage path (face → TTS-paced typing →
+  mood flash). 6 s cooldown between reactions; mood observed into the
+  affect engine. Shakes ≥ 8 now flirt with the TODO's future "fall out of
+  the stage" gag.
+- [x] **Renderer canned-speech refactor** — `sayWelcomeBack` and shake
+  reactions share one `playCanned(g)` routine (welcome-back fetches its
+  line first; shake lines arrive pushed from main).
 
 - [x] **Welcome-back greeter (AFK detection)** — renderer tracks
   pointer/key/focus activity; a return after ≥5 min pings `kanna:back`
