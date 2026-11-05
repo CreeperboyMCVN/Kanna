@@ -244,11 +244,16 @@ async function createWindow() {
     }
   }
 
+  win.on('move', () => {
+    // 'move' streams continuously while dragging (Windows), so reversal
+    // sampling sees the back-and-forth; 'moved' only fires once at the end.
+    const [x, y] = win.getPosition();
+    shakeSample(x, y);
+  });
+
   win.on('moved', () => {
     clearTimeout(moveTimer);
     moveTimer = setTimeout(savePosition, 500);
-    const [x, y] = win.getPosition();
-    shakeSample(x, y);
   });
 
   // The ✕ button hides her to the tray instead of exiting — she keeps
