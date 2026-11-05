@@ -109,10 +109,15 @@
   }
 
   // Left alone long enough (and nothing held/underway), she dozes off on
-  // the still image. Pointer/key activity or a new turn wakes her.
+  // the still image. Pointer/key activity or a new turn wakes her — and
+  // waking after a real absence (≥5 min) gets the user a welcome-back
+  // line whose mood scales with the silence.
   const SLEEP_AFTER_MS = 180000;
+  const BACK_AFTER_MS = 5 * 60 * 1000;
   let sleepTimer = null;
   let sleeping = false;
+  let lastInputAt = Date.now();
+
   function armSleep() {
     clearTimeout(sleepTimer);
     sleepTimer = setTimeout(() => {
@@ -120,13 +125,58 @@
     }, SLEEP_AFTER_MS);
   }
   function wake() {
+    const now = Date.now();
+    const away = now - lastInputAt;
+    lastInputAt = now;
     if (sleeping) setEmote('neutral', false);
     else armSleep();
+    if (away >= BACK_AFTER_MS) sayWelcomeBack(away);
   }
   for (const ev of ['pointerdown', 'keydown']) {
     window.addEventListener(ev, wake, { passive: true });
   }
   window.addEventListener('focus', wake);
+
+  // She speaks up on her own: plays a main-provided canned greeting through
+  // the same stage machinery as a normal reply (face, typed-out text, TTS),
+  // then hands the turn back to the mood flash. Not pushed into the model
+  // history — this greeting is hers, not part of the conversation.
+  async function sayWelcomeBack(awayMs) {
+    let g = null;
+    try { g = await window.kanna.back(Math.round(awayMs)); } catch { return; }
+    if (!g?.text || busy || composerOpen || phase !== 'idle') return;
+
+    liveMood = MOOD_ALIASES[g.mood] || (EMOTES.includes(g.mood) ? g.mood : 'neutral');
+    liveSpeed = Math.min(1.8, Math.max(0.7, Number(g.speed) || 1));
+    liveHold = null;
+    text = '';
+    received = '';
+
+    setEmote(liveMood, false);
+    busy = true;
+
+    // Voice first (same as send(): synthesize, then pace typing to it).
+    let durMs = 0;
+    const spoken = textForSpeech(g.text);
+    if (!tts?.muted) {
+      try {
+        const r = await speakChunk(spoken);
+        durMs = r?.durationMs || 0;
+      } catch { /* silent line typing still works */ }
+    }
+    if (durMs > 0) {
+      targetCps = spoken.length / (durMs / 1000);
+      speechPhaseActive = true;
+    } else {
+      speechPhaseActive = false;
+      targetCps = TYPE_CPS * liveSpeed;
+    }
+
+    pending = g.text;
+    phase = 'speaking';
+    finishing = true;
+    if (!drainTimer) drainTimer = requestAnimationFrame(pace);
+  }
 
   // While the model is thinking there are no words yet — stay idle; the
   // speaking variant kicks in only once real tokens start arriving.

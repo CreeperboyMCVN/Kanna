@@ -8,6 +8,8 @@ const ai = require('./ai');
 const tts = require('./tts');
 const stt = require('./stt');
 const log = require('./log');
+const affect = require('./affect');
+const welcome = require('./welcome');
 
 function lastUserText(messages) {
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -235,6 +237,16 @@ app.whenReady().then(async () => {
   ipcMain.handle('memory:get', () => ({ entries: memory.load() }));
   ipcMain.handle('memory:remove', (_e, key) => ({ entries: memory.removeEntry(String(key || '')) }));
   ipcMain.handle('memory:clear', () => ({ entries: memory.clearAll() }));
+
+  // Welcome-back: the renderer pings main when the user becomes active
+  // again after ≥5 min away. Main picks a tier-matched canned line (no
+  // model call) and lets the affect engine feel it too, so the next
+  // model turn inherits the reunion mood.
+  ipcMain.handle('kanna:back', (_e, awayMs) => {
+    const g = welcome.greet(awayMs);
+    affect.observe({ mood: g.mood, speed: g.speed, hold: false }, 'back');
+    return g;
+  });
 
   ipcMain.handle('chat:send', (event, messages) => {
     const emit = (type, payload) => {

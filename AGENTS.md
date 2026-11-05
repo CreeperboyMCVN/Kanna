@@ -11,7 +11,8 @@ Current state (Nov 2026): chat, settings, memory, tray/hotkey, turn-box UI, TTS,
 - `package.json` + `package-lock.json` at root. Dev deps: `electron`, `electron-builder`. Scripts include `npm start`, `npm run clean:dist`, `npm run dist`, `npm run dist:cuda`, `npm run dist:all`, optional `piper:build`/`stt:build`/`piper:build:cuda` (output in `dist/`, GPU server build uses `.opencode/cuda-venv`).
 - Packaged artifacts already exist (when built): `dist/Kanna Setup 0.1.x.exe`, `dist/Kanna-Setup-0.1.x-cuda.exe`, `dist/win-unpacked/`. The released version is currently v0.1.3.
 - Source layout:
-  - `src/main/main.js` — window + IPC (`settings:get/save`, `models:list`, `chat:send`, `chat:stop`, `memory:*`, `tts:speak/cancel`, STT, window buttons), tray, Ctrl+Shift+K summon, remembered window position. `settings:save` stops the Piper server so the next speak rebuilds it with fresh flags.
+  - `src/main/main.js` — window + IPC (`settings:get/save`, `models:list`, `chat:send`, `chat:stop`, `kanna:back`, `memory:*`, `tts:speak/cancel`, STT, window buttons), tray, Ctrl+Shift+K summon, remembered window position. `settings:save` stops the Piper server so the next speak rebuilds it with fresh flags. `kanna:back` serves the welcome-back greeting: absence-length canned line from `welcome.js`, mood observed into the affect engine.
+  - `src/main/welcome.js` — welcome-back greeter: five absence tiers (≥5 min bored → ≥30 min happy → ≥90 min teasing → ≥4 h sad → ≥12 h shy) with 6 canned lines each, no-repeat per tier, `{name}` splices remembered user name, no model call.
   - `src/main/settings.js` — settings store at `%APPDATA%\Kanna\settings.json`; API/TTS keys encrypted at rest with safeStorage (DPAPI), plaintext in memory, migration on load. Includes `tts.piperUseGpu`.
   - `src/main/memory.js` — durable facts in `%APPDATA%\Kanna\memory.json`; post-turn extraction; injected into system prompt.
   - `src/main/ai.js` — providers (OpenAI, custom, OpenCode, Anthropic, Gemini), SSE streaming, model listing, JSON reply protocol reader (now also reads optional model-driven `intensity` 0–1). Standing `Emotional direction` block + `affect.moodCarry()` continuity line go into every chat system prompt so the model owns the mood from recent chat history. Spam triggers run only for real chat: `userRepeatCount` (hard normalization strips punctuation/emoji/case and collapses letter-runs like `hiiii`→`hi`, plus Levenshtein ratio ≥ 0.7 for near-variants) or `rapidUserStreak` (≥ 3 unanswered user messages in a row = flooding; different content still counts).
@@ -37,7 +38,7 @@ Current state (Nov 2026): chat, settings, memory, tray/hotkey, turn-box UI, TTS,
 
 ## IPC contract
 
-`settings:get`, `settings:save`, `models:list`, `chat:send`, `chat:stop`, `memory:get`, `memory:remove`, `memory:clear`, `tts:speak`, `tts:cancel`, `win:min`, `win:close`.
+`settings:get`, `settings:save`, `models:list`, `chat:send`, `chat:stop`, `kanna:back`, `memory:get`, `memory:remove`, `memory:clear`, `tts:speak`, `tts:cancel`, `win:min`, `win:close`.
 
 `chat:send` emits `chat:chunk` and `chat:meta` {mood,speed,hold}, resolves `{ stopped, text }`; streaming errors reject. `runChat(messages, emit, system, opts)` supports `registerInActive` and `plain`.
 
@@ -46,6 +47,8 @@ Current state (Nov 2026): chat, settings, memory, tray/hotkey, turn-box UI, TTS,
 - Emotions are pairs: `<emotion>.png` and `<emotion>-speak.png`.
 - Current emotions: angry, bored, dizzy, happy, neutral, sad, shy, strained, surprise, teasing. Plus a `still/` folder for art outside the mood cycle (`sleep.png` — shown after ~3 min idle, wakes on any interaction).
 - Backgrounds numbered in `assets/background/`.
+- `assets/pet-model/` — reserved sprite art for Kanna living outside the stage window (future overlay pet): `animated/lay.webp`, `animated/walk.webp`, `static/sleep.png`. Not wired to any renderer yet; folder kept for the (later, deliberately-deferred) separate pet window described in TODO.md.
+
 - `assets/icon.ico` tray/window; `assets/icon.png` 512x512 installer icon.
 
 ## Notes

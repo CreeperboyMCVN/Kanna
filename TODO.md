@@ -81,6 +81,22 @@ Backlog of things not built yet. Pick from the top when starting something new.
 
 ## Completed recently (v0.1.3)
 
+- [x] **Welcome-back greeter (AFK detection)** — renderer tracks
+  pointer/key/focus activity; a return after ≥5 min pings `kanna:back`
+  (new IPC + preload bridge) and new `src/main/welcome.js` answers with a
+  canned line + mood sized to the silence: ≥5 min `bored`, ≥30 min
+  `happy`, ≥90 min `teasing`, ≥4 h `sad` (hurt-pouty), ≥12 h `shy`
+  (overnight). No model call — instant, works with no provider set,
+  6 lines per tier with no-repeat, `{name}` splices the remembered user
+  name from memory.json. Greeting plays through the normal reply stage
+  (face → typed text paced to TTS → mood flash) and is observed into the
+  affect engine (`[affect] back:`) so the next model turn inherits the
+  reunion feeling. Skipped when busy/composer-open; never pushed into
+  model history.
+- [x] **`assets/pet-model/` reserved** — sprite art for Kanna living
+  outside the stage window later (`animated/lay.webp`, `animated/walk.webp`,
+  `static/sleep.png`); documented for the future overlay pet, no wiring yet.
+
 - [x] **New emotes: teasing + bored, dozing still** — two new emote pairs
   (`teasing`, `bored`, with `-speak` variants) wired into `EMOTES`,
   `MOOD_ALIASES`, the keyword `MOOD_RULES` fallback, the protocol's mood

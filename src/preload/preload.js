@@ -11,6 +11,10 @@ contextBridge.exposeInMainWorld('kanna', {
   clearMemory: () => ipcRenderer.invoke('memory:clear'),
   sendChat: (messages) => ipcRenderer.invoke('chat:send', messages),
   stopChat: () => ipcRenderer.send('chat:stop'),
+
+  // Welcome-back greeting when the user returns after a while (main picks
+  // line + mood by absence length; no model involved).
+  back: (awayMs) => ipcRenderer.invoke('kanna:back', awayMs),
   onChunk: (listener) => {
     ipcRenderer.on('chat:chunk', (_e, text) => listener(text));
   },
