@@ -12,10 +12,9 @@ contextBridge.exposeInMainWorld('kanna', {
   sendChat: (messages) => ipcRenderer.invoke('chat:send', messages),
   stopChat: () => ipcRenderer.send('chat:stop'),
 
-  // Shake flow: renderer asks for the model's shake reaction, and tells
-  // main when the voice finished so the window position unfreezes. Main
-  // also pushes the freeze/unfreeze notifications for the toasts.
-  shakeAsk: (shakes) => ipcRenderer.invoke('kanna:shakeAsk', shakes),
+  // Shake flow: renderer passes its chat tail so the model reacts inside
+  // the conversation instead of inventing a disjointed scene.
+  shakeAsk: (shakes, hist) => ipcRenderer.invoke('kanna:shakeAsk', shakes, hist),
   unfreeze: () => ipcRenderer.send('kanna:unfreeze'),
   onShakeLock: (listener) => {
     ipcRenderer.on('kanna:shakeLock', (_e, info) => listener(info));

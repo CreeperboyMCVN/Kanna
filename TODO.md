@@ -95,7 +95,9 @@ Backlog of things not built yet. Pick from the top when starting something new.
   "Position locked until I settle…", and asks the model: main sends
   `kanna:shakeAsk` with a hidden scene prompt (shake count, dizzy 1–3 /
   angry 4+, run with `noTriggers:true` so the synthetic prompt can't
-  pollute tone/repeat detection), streaming through the normal
+  pollute tone/repeat detection; the renderer's last 24 chat messages
+  ride along so the reaction is grounded in the ongoing conversation and
+  reads continuous), streaming through the normal
   `chat:chunk`/`chat:meta` channels. The renderer runs it as a full turn
   (dots → mood face from the model's own meta → text typed out paced to
   TTS). When typing + voice are done it calls `kanna:unfreeze`; main

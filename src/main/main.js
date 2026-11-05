@@ -362,12 +362,15 @@ app.whenReady().then(async () => {
     return g;
   });
 
-  // Shaken Kanna: the model answers for her. A hidden scene prompt (not
-  // user text) with the shake count; persona/emotional-direction/carry
-  // all apply; affect triggers are skipped so the fake prompt doesn't
-  // pollute tone/repeat detection. Streaming flows through the same
-  // chat:chunk / chat:meta channels the renderer already consumes.
-  ipcMain.handle('kanna:shakeAsk', async (event, shakes) => {
+  // Shaken Kanna: the model answers for her. The renderer's recent chat tail
+  // rides along so the reaction is grounded in the ongoing conversation
+  // (topical callbacks, her current feeling) instead of being disjointed.
+  // A hidden scene prompt is appended after it — never user-visible.
+  // Persona/emotional-direction/carry all apply; affect triggers are
+  // skipped so the fake prompt can't pollute tone/repeat detection.
+  // Streaming flows through the same chat:chunk / chat:meta channels the
+  // renderer already consumes.
+  ipcMain.handle('kanna:shakeAsk', async (event, shakes, hist) => {
     const n = Math.max(1, Math.min(24, Number(shakes) || 1));
     const prompt = [
       '[Hidden scene note — the user cannot see, hear, or "send" this message]',
@@ -375,6 +378,7 @@ app.whenReady().then(async () => {
       n > 3
         ? `${n} shakes is far past fun — Kanna is genuinely angry and scolds the user properly.`
         : `${n} shakes are over quickly but leave Kanna dizzy and flustered — she protests the spinning world.`,
+      'This happens in the middle of the ongoing conversation above — read it first and stay continuous: pick up the latest topic, your earlier feeling about it, or earlier shake incidents when it fits. It should read like the same Kanna from the chat, mid-thought, just now getting shaken.',
       'Keep the reply very short (1–2 sentences, spoken-style). No markdown. Pick the matching mood yourself (dizzy for 1–3, angry for 4+).',
     ].join('\n');
     const emit = (type, payload) => {
@@ -384,7 +388,11 @@ app.whenReady().then(async () => {
         // window gone mid-stream — nothing to do
       }
     };
-    return ai.runChat([{ role: 'user', content: prompt }], emit, undefined, { noTriggers: true });
+    const messages = [
+      ...ai.normalize(hist),
+      { role: 'user', content: prompt },
+    ];
+    return ai.runChat(messages, emit, undefined, { noTriggers: true });
   });
 
   ipcMain.handle('chat:send', (event, messages) => {

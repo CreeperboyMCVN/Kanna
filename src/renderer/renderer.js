@@ -284,7 +284,7 @@ async function runShakeAI(shakes) {
 
     let failed = false;
     try {
-      const result = await window.kanna.shakeAsk(n);
+      const result = await window.kanna.shakeAsk(n, history.slice(-24));
       if (result?.stopped) { shouldSpeak = false; }
       mainEl.classList.remove('typing');
       let full = String(result?.text || '').substring(0, 600);
