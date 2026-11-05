@@ -173,6 +173,9 @@ async function createWindow() {
   const SHAKE_MIN = 1;       // below this: Dragging the window around is not Abuse
   const SHAKE_COOLDOWN = 6000; // ms after a reaction before the next one fires
   const FREEZE_MAX_MS = 90_000; // safety: never stay frozen past this
+  const WIN_W = 340;         // matches createWindow — re-asserted while frozen
+  const WIN_H = 400;         // because setPosition during an active drag-loop
+                             // can let the window rect drift/grow on Windows.
   const shake = { x: null, y: null, dirX: 0, dirY: 0, count: 0, lastAt: 0, quietTimer: null, cooldownUntil: 0, freezeTimer: null };
   let frozenShake = null;    // { x, y, shakes } while the window can't be moved
   let repositioning = false; // guards recursion from our own setPosition
@@ -232,18 +235,34 @@ async function createWindow() {
     if (!frozenShake) return;
     clearTimeout(shake.freezeTimer);
     frozenShake = null;
+    // Last line of defense: if the drag-loop drifted the rect between
+    // events, snap the true size back once more when releasing.
+    try {
+      const [w, h] = win.getSize();
+      if (w !== WIN_W || h !== WIN_H) win.setSize(WIN_W, WIN_H);
+    } catch { /* window gone mid-flight */ }
     log.info('[shake]', `position unfrozen (${reason})`);
     if (win && !win.isDestroyed()) win.webContents.send('kanna:freezeOff', { reason });
   }
 
   win.on('move', () => {
-    // While frozen: immediately undo any attempt to move her (this also
-    // ends the user's modal drag on Windows — the window snaps back).
+    // While frozen: immediately undo any attempt to move (or, thanks to
+    // Windows quirks in the active drag-loop, resize) her. setBounds with
+    // explicit W×H corrects both in one call — setPosition alone can leave
+    // the rect enlarged. This also breaks the user's modal drag.
     if (frozenShake && !repositioning) {
       repositioning = true;
       try {
         const [x, y] = win.getPosition();
-        if (x !== frozenShake.x || y !== frozenShake.y) win.setPosition(frozenShake.x, frozenShake.y);
+        const [w, h] = win.getSize();
+        if (x !== frozenShake.x || y !== frozenShake.y || w !== WIN_W || h !== WIN_H) {
+          win.setBounds({
+            x: frozenShake.x,
+            y: frozenShake.y,
+            width: WIN_W,
+            height: WIN_H,
+          });
+        }
       } finally {
         repositioning = false;
       }
