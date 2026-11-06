@@ -322,7 +322,9 @@ async function runShakeAI(shakes) {
     try {
       const result = await window.kanna.shakeAsk(n, history.slice(-24));
       if (result?.stopped) { shouldSpeak = false; }
-      mainEl.classList.remove('typing');
+      // Keep the 'typing' class: pace() removes it on the first typed slice
+      // and swaps to the speaking art there. Removing it early would leave
+      // the face parked on the static pre-speech pose.
       let full = String(result?.text || '').substring(0, 600);
       if (result?.stopped && full && !/[.…]$/.test(full)) full += ' …';
       if (!full.trim()) {
