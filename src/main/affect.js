@@ -79,6 +79,7 @@ const state = {
   annoyed: 0,  // 0 calm … 3 fed up (spam level, see noteSpam)
   spamKind: null, // 'repeat' | 'flood' — which flavor holds the irritation
   tone: { kind: null, level: 0 }, // last emotional tone read from the user
+  warm: 0,     // 0 none … 3 melted — cumulative sweetness reservoir
   modelIntensity: null, // optional "intensity" 0..1 the model itself reports
 };
 
@@ -135,6 +136,9 @@ function beginTurn() {
     state.tone.level--;
     if (state.tone.level === 0) state.tone.kind = null;
   }
+  // Sweetness fades too — she needs to be earned back-to-back, not once
+  // every ten messages.
+  if (state.warm > 0) state.warm--;
 }
 
 // Irritation can only climb to a higher target and the kind must be fresh:
@@ -280,17 +284,26 @@ function noteUserTone(text, source = 'user') {
   const fedUp = state.annoyed >= 2 || state.family === 'angry';
 
   // Dimension nudges: small, per level; cruelty hurts more than praise soothes.
-  const nudge = ({
+  // Affection is earned, not triggered: a single sweet word out of nowhere
+  // barely stirs her — repeated sweetness (state.warm) builds up.
+  const nudgeTable = {
     unkind:       { dv: -0.15, da: +0.06 },
     affectionate: { dv: +0.10, da: +0.05 },
     apology:      { dv: +0.02, da: -0.02 },
     tease:        { dv: +0.03, da: +0.08 },
     praise:       { dv: +0.08, da: +0.05 },
-  })[kind];
+  };
+  const nudge = nudgeTable[kind];
+  if (kind === 'affectionate') {
+    const heat = Math.min(state.warm, 2); // 0 = first sweet word, 2 = already melting
+    nudge.dv = 0.02 + 0.04 * heat;        // 0.02 … 0.10 per level
+    nudge.da = 0.02 + 0.03 * heat;
+  }
   if (kind === 'tease' && fedUp) { nudge.dv = -0.05; nudge.da = +0.05; }
   state.v = clampJ(state.v + nudge.dv * level);
   state.a = clamp01(state.a + nudge.da * level);
   state.s = clamp01(state.s + (kind === 'tease' || kind === 'affectionate' ? 0.05 * level : -0.05 * level));
+  if (kind === 'affectionate') state.warm = Math.min(3, state.warm + level);
 
   // An honest "sorry" earns trust back at one grudge level per apology TURN,
   // never in one message: she needs to see it kept, not just said.
@@ -316,8 +329,8 @@ function toneNote() {
       'Right now, in character: the user keeps being mean to her. Kanna is properly stung — sad, a little teary, maybe calls it out with a shaky voice (mood "sad" + speed slower). She stays kind, but she shows it hurts.',
     ],
     affectionate: [
-      'Right now, in character: the user just said something sweet. Kanna gets flustered but secretly delighted — shy smile, warm reply (mood "shy" or "happy").',
-      'Right now, in character: the user is being very affectionate. Kanna melts — properly flustered, beam through the shyness (mood "happy" or "shy"), maybe hugs back.',
+      'Right now, in character: the user said one sweet thing out of nowhere — Kanna is only a LITTLE caught off guard: a restrained half-smile, a little "...oh" (mood "neutral" or barely "shy", normal speed). She does not melt from one line; warmth earns her over several sweet messages.',
+      'Right now, in character: the user keeps being sweet and warm to you and it adds up — Kanna is properly flustered and secretly delighted (mood "happy" or "shy"), maybe beams a little.',
     ],
     apology: [
       'Right now, in character: the user just apologized. Kanna does NOT melt instantly — she gives a guarded half-forgiveness: looking away, small pout, a short "…I guess" (mood "strained" or "shy", slow speed). She softens slowly and needs the good treatment to keep up.',
@@ -345,6 +358,11 @@ function toneNote() {
   // guarded tone until the irritation pool has actually cooled.
   if (state.tone.kind === 'apology' && state.annoyed >= 2) {
     return lines.apology[0] || '';
+  }
+  // Affection needs buildup: until warmth has accumulated (several sweet
+  // turns back to back), even heavy sweet bursts stay barely flustering.
+  if (state.tone.kind === 'affectionate' && state.warm < 3) {
+    return lines.affectionate[0] || '';
   }
   return arr[Math.min(arr.length - 1, state.tone.level - 1)] || '';
 }
