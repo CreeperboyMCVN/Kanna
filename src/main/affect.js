@@ -283,7 +283,7 @@ function noteUserTone(text, source = 'user') {
   const nudge = ({
     unkind:       { dv: -0.15, da: +0.06 },
     affectionate: { dv: +0.10, da: +0.05 },
-    apology:      { dv: +0.06, da: -0.04 },
+    apology:      { dv: +0.02, da: -0.02 },
     tease:        { dv: +0.03, da: +0.08 },
     praise:       { dv: +0.08, da: +0.05 },
   })[kind];
@@ -292,7 +292,17 @@ function noteUserTone(text, source = 'user') {
   state.a = clamp01(state.a + nudge.da * level);
   state.s = clamp01(state.s + (kind === 'tease' || kind === 'affectionate' ? 0.05 * level : -0.05 * level));
 
-  log.info('[affect]', `${source} tone ${kind} x${count}${kind === 'tease' && fedUp ? ' (she stays angry — joke does not land)' : ''}: `
+  // An honest "sorry" earns trust back at one grudge level per apology TURN,
+  // never in one message: she needs to see it kept, not just said.
+  let forgive = '';
+  if (kind === 'apology' && state.annoyed > 0) {
+    const had = state.annoyed;
+    state.annoyed = Math.max(0, had - 1);
+    forgive = ` (grudge eases ${had}→${state.annoyed})`;
+    if (state.annoyed === 0) state.spamKind = null;
+  }
+
+  log.info('[affect]', `${source} tone ${kind} x${count}${kind === 'tease' && fedUp ? ' (she stays angry — joke does not land)' : ''}${forgive}: `
     + `v ${r2(before.v)}→${r2(state.v)} a ${r2(before.a)}→${r2(state.a)}`);
   return snapshot();
 }
@@ -310,8 +320,8 @@ function toneNote() {
       'Right now, in character: the user is being very affectionate. Kanna melts — properly flustered, beam through the shyness (mood "happy" or "shy"), maybe hugs back.',
     ],
     apology: [
-      'Right now, in character: the user just apologized. Kanna forgives quickly and warms up (mood "happy", gentle speed) — maybe a small "it\'s okay".',
-      'Right now, in character: the user is clearly sorry about something. Kanna softens fully, reassures them (mood "happy", slow gentle tempo).',
+      'Right now, in character: the user just apologized. Kanna does NOT melt instantly — she gives a guarded half-forgiveness: looking away, small pout, a short "…I guess" (mood "strained" or "shy", slow speed). She softens slowly and needs the good treatment to keep up.',
+      'Right now, in character: the user is clearly sorry and has kept apologizing. Kanna gives in properly — a shy, bashful sparkle returning (mood "shy" or "happy", gentle slow tempo) — but she keeps a tiny guilt-trip: "that really hurt, you know".',
     ],
     tease: [
       'Right now, in character: the user is teasing her. Kanna puffs her cheeks and pouts, but she plays along (mood "teasing" or "shy") — not actually upset, she gives as good as she gets.',
@@ -330,6 +340,11 @@ function toneNote() {
   const arr = lines[state.tone.kind] || [];
   if (state.tone.kind === 'tease' && (state.annoyed >= 2 || state.family === 'angry')) {
     return lines.teaseFedUp[Math.min(lines.teaseFedUp.length - 1, state.tone.level - 1)] || '';
+  }
+  // Deep grudges take more than words: even repeated sorries only earn the
+  // guarded tone until the irritation pool has actually cooled.
+  if (state.tone.kind === 'apology' && state.annoyed >= 2) {
+    return lines.apology[0] || '';
   }
   return arr[Math.min(arr.length - 1, state.tone.level - 1)] || '';
 }
