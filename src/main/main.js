@@ -165,42 +165,67 @@ async function createWindow() {
 
   // --- shake detector -------------------------------------------------------
   // Grabbing and rattling the window (rapid back-and-forth drags) is its own
-  // kind of user attention: 1–3 direction reversals in one burst leave her
-  // dizzy, more than 3 makes her properly angry. A burst ends after a short
-  // stillness; cooldown keeps repeated rattling from spamming reactions.
-  const SHAKE_AMP = 14;      // px swing per sample that counts as a fling
+  // kind of user attention. Each completed swing adds to the shake count
+  // weighted by how far Kanna was flung: gentle ripples add 1, firmer
+  // swings 2, violent ones 3 — so hard shakes escalate fast, soft rattling
+  // builds slowly. The burst totals up only when she stops shaking: a quiet
+  // gap closes it, and the mood comes from the weighted count (dizzy 1–3,
+  // angry past that). Cooldown keeps repeated rattling from spamming.
+  const SHAKE_AMP = 14;      // px sample-to-sample swing that closes a swing
   const SHAKE_QUIET = 600;   // ms of stillness that ends a shake burst
-  const SHAKE_MIN = 1;       // below this: Dragging the window around is not Abuse
+  const SHAKE_W2 = 60;       // swing span (px) ≥ this → weight 2
+  const SHAKE_W3 = 140;      // swing span (px) ≥ this → weight 3
   const SHAKE_COOLDOWN = 6000; // ms after a reaction before the next one fires
   const FREEZE_MAX_MS = 90_000; // safety: never stay frozen past this
   const WIN_W = 340;         // matches createWindow — re-asserted while frozen
   const WIN_H = 400;         // because setPosition during an active drag-loop
                              // can let the window rect drift/grow on Windows.
-  const shake = { x: null, y: null, dirX: 0, dirY: 0, count: 0, lastAt: 0, quietTimer: null, cooldownUntil: 0, freezeTimer: null };
+  const shake = {
+    x: null, y: null,
+    axX: { dir: 0, travel: 0 }, axY: { dir: 0, travel: 0 },
+    count: 0, flips: 0,
+    lastAt: 0, quietTimer: null, cooldownUntil: 0, freezeTimer: null,
+  };
   let frozenShake = null;    // { x, y, shakes } while the window can't be moved
   let repositioning = false; // guards recursion from our own setPosition
+
+  // Weight tier for a completed swing: distance traveled since the last
+  // decisive reversal decides how hard that rattle gets counted.
+  function swingWeight(span) {
+    if (span >= SHAKE_W3) return 3;
+    if (span >= SHAKE_W2) return 2;
+    return 1;
+  }
+
+  function feedAxis(a, dx) {
+    if (!dx) return;
+    const s = Math.sign(dx);
+    if (a.dir === 0) { a.dir = s; a.travel = 0; return; }
+    if (s === a.dir) { a.travel += Math.abs(dx); return; }
+    if (Math.abs(dx) < SHAKE_AMP) return; // micro-wobble — wait for a real reversal
+    // Decisive reversal: the previous swing is complete. Weight it by the
+    // distance traveled across it (both legs best-effort at ±1 sample).
+    const span = a.travel + Math.abs(dx);
+    a.dir = s;
+    a.travel = Math.abs(dx);
+    if (span >= SHAKE_AMP) {
+      shake.count += swingWeight(span);
+      shake.flips++;
+    }
+  }
 
   function shakeSample(x, y) {
     const now = Date.now();
     if (shake.x !== null) {
       if (now - shake.lastAt > SHAKE_QUIET) {
-        // Fresh burst: re-anchor direction, forget the old count.
+        // Fresh burst: re-anchor directions, forget the old count.
         shake.count = 0;
-        shake.dirX = 0;
-        shake.dirY = 0;
+        shake.flips = 0;
+        shake.axX.dir = 0; shake.axX.travel = 0;
+        shake.axY.dir = 0; shake.axY.travel = 0;
       } else {
-        const dx = x - shake.x;
-        const dy = y - shake.y;
-        if (Math.abs(dx) >= SHAKE_AMP) {
-          const s = Math.sign(dx);
-          if (shake.dirX !== 0 && s !== shake.dirX) shake.count++;
-          shake.dirX = s;
-        }
-        if (Math.abs(dy) >= SHAKE_AMP) {
-          const s = Math.sign(dy);
-          if (shake.dirY !== 0 && s !== shake.dirY) shake.count++;
-          shake.dirY = s;
-        }
+        feedAxis(shake.axX, x - shake.x);
+        feedAxis(shake.axY, y - shake.y);
       }
     }
     shake.x = x;
@@ -215,18 +240,20 @@ async function createWindow() {
   // runs the reply, then calls kanna:unfreeze once text + voice are done.
   function shakeBurstEnd() {
     const count = shake.count;
+    const flips = shake.flips;
     shake.count = 0;
+    shake.flips = 0;
     shake.x = null;
     shake.y = null;
-    shake.dirX = 0;
-    shake.dirY = 0;
-    if (count < SHAKE_MIN || Date.now() < shake.cooldownUntil || !win || win.isDestroyed()) return;
+    shake.axX.dir = 0; shake.axX.travel = 0;
+    shake.axY.dir = 0; shake.axY.travel = 0;
+    if (count < 1 || flips < 1 || Date.now() < shake.cooldownUntil || !win || win.isDestroyed()) return;
     const [cx, cy] = win.getPosition();
     frozenShake = { x: cx, y: cy, shakes: count };
     shake.cooldownUntil = Date.now() + SHAKE_COOLDOWN;
     clearTimeout(shake.freezeTimer);
     shake.freezeTimer = setTimeout(() => unfreezeForShake('timeout'), FREEZE_MAX_MS);
-    log.info('[shake]', `${count} shakes → position frozen, asking the model`);
+    log.info('[shake]', `${count} shakes (${flips} swings) → position frozen, asking the model`);
     if (win.isVisible()) win.webContents.send('kanna:shakeLock', { shakes: count });
     else unfreezeForShake('hidden');
   }
