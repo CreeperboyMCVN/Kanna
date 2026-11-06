@@ -307,7 +307,9 @@ function moodCarry() {
 
 const TONE_WORDS = {
   // severity order matters: first match by count wins, ties → first in list
-  unkind: /\b(stupid|idiot|dumb|hate you|hate this|shut up|useless|ugly|boring|annoying)\b/g,
+  // Unkind must point AT her — self-descriptions ("i'm so boring") and
+  // third-party complaints ("this app is annoying") are not attacks.
+  unkind: /\b(?:you|you'?re|your|ur|u)\b[^\n.?]{0,32}?\b(?:stupid|idiot|dumb|useless|ugly|boring|annoying|worthless|trash|failure)\b|\b(?:stupid|useless|dumb|boring|annoying)\b\s+(?:bot|robot|girl|app|ai|assistant|companion)\b|\bhate\s+(?:you|u)\b|\bshut up\b/g,
   affectionate: /\b(i love you|love you|i adore|adorable|beautiful|pretty|cute|pretty face|good girl|best girl|my girl|mwah|hug|hugging|snuggle|missed you|miss you)\b|❤|❣|💕|💗|🥰|😍|<3|:3/g,
   apology: /\b(sorry|my bad|apologi[sz]e|forgive me|didn'?t mean)\b/g,
   tease: /\b(lol|lmao|haha|hehe|teasing|just kidding|kidding|gotcha|boop|:p|;p)\b/g,
