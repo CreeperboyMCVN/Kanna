@@ -249,19 +249,25 @@ function noteUserTone(text, source = 'user') {
   state.tone = { kind, level };
   state.lastAt = Date.now();
 
+  // She can't be talked out of a grudge with a joke: when she's already fed
+  // up with the user, teasing doesn't flip her into playful pouting — it
+  // reads as escalating. Hurt stays, the tease note says she stays angry.
+  const fedUp = state.annoyed >= 2 || state.family === 'angry';
+
   // Dimension nudges: small, per level; cruelty hurts more than praise soothes.
-  const nudge = {
+  const nudge = ({
     unkind:       { dv: -0.15, da: +0.06 },
     affectionate: { dv: +0.10, da: +0.05 },
     apology:      { dv: +0.06, da: -0.04 },
     tease:        { dv: +0.03, da: +0.08 },
     praise:       { dv: +0.08, da: +0.05 },
-  }[kind];
+  })[kind];
+  if (kind === 'tease' && fedUp) { nudge.dv = -0.05; nudge.da = +0.05; }
   state.v = clampJ(state.v + nudge.dv * level);
   state.a = clamp01(state.a + nudge.da * level);
   state.s = clamp01(state.s + (kind === 'tease' || kind === 'affectionate' ? 0.05 * level : -0.05 * level));
 
-  log.info('[affect]', `${source} tone ${kind} x${count}: `
+  log.info('[affect]', `${source} tone ${kind} x${count}${kind === 'tease' && fedUp ? ' (she stays angry — joke does not land)' : ''}: `
     + `v ${r2(before.v)}→${r2(state.v)} a ${r2(before.a)}→${r2(state.a)}`);
   return snapshot();
 }
@@ -286,12 +292,20 @@ function toneNote() {
       'Right now, in character: the user is teasing her. Kanna puffs her cheeks and pouts, but she plays along (mood "teasing" or "shy") — not actually upset, she gives as good as she gets.',
       'Right now, in character: the user is really enjoying teasing her. Kanna is properly flustered and mock-annoyed (mood "teasing" or "strained", faster speed) — witty comeback territory.',
     ],
+    // Fed-up override — see noteUserTone: a grudge can't be joked away.
+    teaseFedUp: [
+      'Right now, in character: the user is teasing her, but Kanna is already fed up with them and the joke does NOT land — it reads as twisting the knife. She stays sore and pushes back (mood "angry" or "strained"), maybe snaps a short comeback; no cheeky pouting.',
+      'Right now, in character: the user keeps teasing her while she is deliberately irritated with them. Kanna does NOT soften into playing along — her anger holds (mood "angry" or "strained"), she bites back properly.',
+    ],
     praise: [
       'Right now, in character: the user just praised/thanked her. Kanna beams, a little proud (mood "happy") — accept it warmly, stay humble.',
       'Right now, in character: the user is really complimenting her. Kanna is overjoyed (mood "happy", faster happy tempo) — feels appreciated.',
     ],
   };
   const arr = lines[state.tone.kind] || [];
+  if (state.tone.kind === 'tease' && (state.annoyed >= 2 || state.family === 'angry')) {
+    return lines.teaseFedUp[Math.min(lines.teaseFedUp.length - 1, state.tone.level - 1)] || '';
+  }
   return arr[Math.min(arr.length - 1, state.tone.level - 1)] || '';
 }
 
