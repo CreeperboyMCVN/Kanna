@@ -16,6 +16,15 @@
 
   const EMOTES = ['angry', 'bored', 'dizzy', 'happy', 'neutral', 'sad', 'shy', 'strained', 'surprise', 'teasing'];
 
+  // The shipped art names the "bored" family's files "boring-*"; the
+  // protocol label stays "bored". Map at the file layer only.
+  const EMOTE_FILE = { bored: 'boring' };
+
+  // Phase 4 assets: most moods speak through three intensity variants
+  // (-speak-i1/i2/i3, matching the model's intensity bands); neutral and
+  // dizzy have a single shared variant file (-speak-all) instead.
+  const SPEAK_ALL = new Set(['neutral', 'dizzy']);
+
   // Crisp icons for the send/stop button (innerHTML, since textContent swaps would clash).
   const SEND_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg>';
   const STOP_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg>';
@@ -88,12 +97,21 @@
 
   // Warm the image cache so emote swaps never flicker.
   for (const emotion of EMOTES) {
-    for (const speak of ['', '-speak']) {
-      new Image().src = `../../assets/emotes/${emotion}${speak}.png`;
+    const file = EMOTE_FILE[emotion] || emotion;
+    for (const speak of SPEAK_ALL.has(emotion) ? ['', '-speak-all'] : ['', '-speak-i1', '-speak-i2', '-speak-i3']) {
+      new Image().src = `../../assets/emotes/${file}${speak}.png`;
     }
   }
 
   // --- emote --------------------------------------------------------------
+
+  // Which speaking file the current intensity band calls for. Neutral and
+  // dizzy have no bands — their single "all" variant always applies.
+  function speakVariant(emotion) {
+    if (SPEAK_ALL.has(emotion)) return '-speak-all';
+    const band = liveIntensity < 0.34 ? 'i1' : liveIntensity < 0.71 ? 'i2' : 'i3';
+    return `-speak-${band}`;
+  }
 
   function setEmote(emotion, speaking) {
     // The sleepy "still" lives outside the emote pairs — a single PNG for
@@ -106,7 +124,10 @@
       return;
     }
     if (sleeping) sleeping = false;
-    const src = `../../assets/emotes/${emotion}${speaking ? '-speak' : ''}.png`;
+    const file = EMOTE_FILE[emotion] || emotion;
+    // Face scale bands (i-low/mid/high) still add a size read on top; the
+    // -speak-iN art now carries the actual expression intensity.
+    const src = `../../assets/emotes/${file}${speaking ? speakVariant(emotion) : ''}.png`;
     if (sprite.getAttribute('src') !== src) sprite.src = src;
     sprite.classList.toggle('speaking', !!speaking);
     armSleep();
@@ -879,6 +900,9 @@ async function runShakeAI(shakes) {
       if (Number.isFinite(n) && n >= 0 && n <= 1) {
         liveIntensity = n;
         setFaceIntensity();
+        // Mid-speech swaps also re-stage the variant art.
+        if (mainEl.classList.contains('typing')) setEmote(liveMood, false);
+        else if (text) setEmote(liveMood, true);
       }
     }
   });

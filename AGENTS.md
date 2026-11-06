@@ -44,7 +44,7 @@ Current state (Nov 2026): chat, settings, memory, tray/hotkey, turn-box UI, TTS,
 
 ## Assets
 
-- Emotions are pairs: `<emotion>.png` and `<emotion>-speak.png`.
+- Emotions are pairs: `<emotion>.png` and intensity speaking variants. Speaking files: most moods ship three intensity variants `<emotion>-speak-i1/-i2/-i3.png` (matching the `intensity` bands — Phase 4 asset work); `neutral` and `dizzy` ship a single shared `<emotion>-speak-all.png`. The `bored` mood's files are named `boring*` (protocol label unchanged, renderer maps at the file layer).
 - Current emotions: angry, bored, dizzy, happy, neutral, sad, shy, strained, surprise, teasing. Plus a `still/` folder for art outside the mood cycle (`sleep.png` — shown after ~3 min idle, wakes on any interaction).
 - Backgrounds numbered in `assets/background/`.
 - `assets/pet-model/` — reserved sprite art for Kanna living outside the stage window (future overlay pet): `animated/lay.webp`, `animated/walk.webp`, `static/sleep.png`. Not wired to any renderer yet; folder kept for the (later, deliberately-deferred) separate pet window described in TODO.md.
