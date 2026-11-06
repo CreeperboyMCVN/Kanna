@@ -4,6 +4,7 @@
   "version": "0.1.3",
   "description": "Kanna — a tiny desktop AI companion.",
   "author": "Kanna",
+  "license": "MIT",
   "private": true,
   "main": "src/main/main.js",
   "scripts": {
