@@ -250,6 +250,9 @@ async function createWindow() {
     if (count < 1 || flips < 1 || Date.now() < shake.cooldownUntil || !win || win.isDestroyed()) return;
     const [cx, cy] = win.getPosition();
     frozenShake = { x: cx, y: cy, shakes: count };
+    // The rattle feeds her grudge pool: heavier bursts climb toward fed-up
+    // and the annoyance persists across turns (cools one level per turn).
+    affect.noteShake(count);
     shake.cooldownUntil = Date.now() + SHAKE_COOLDOWN;
     clearTimeout(shake.freezeTimer);
     shake.freezeTimer = setTimeout(() => unfreezeForShake('timeout'), FREEZE_MAX_MS);

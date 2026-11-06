@@ -137,23 +137,28 @@ function beginTurn() {
   }
 }
 
-// Shared irritation pool for both spam flavors. Only escalations (and clean
-// kind swaps) move the dims, so refreshes at the same level don't double-dip.
+// Irritation can only climb to a higher target and the kind must be fresh:
+// refreshes at the same level don't double-dip the dims.
 function noteSpam(kind, level) {
   if (level <= 0) return snapshot();
   const prev = state.annoyed;
   if (level < prev) return snapshot(); // existing stronger reaction stands
   const same = level === prev && state.spamKind === kind;
-  state.spamKind = kind;
   if (same) return snapshot();
-  const bump = level - prev;
+  return raiseIrritation(kind, level);
+}
+
+// Move her once to `level` on the shared irritation pool (0 calm … 3 fed up).
+function raiseIrritation(kind, level) {
+  const bump = level - state.annoyed;
   const before = { v: state.v, a: state.a };
+  state.spamKind = kind;
   state.annoyed = level;
   // Irritation: heavier with each extra bump, capped so she sulks, never rages.
   state.v = clampJ(state.v - 0.12 * bump);
   state.a = clamp01(state.a + 0.08 * bump);
   state.lastAt = Date.now();
-  log.info('[affect]', `${kind} spam level ${state.annoyed}: `
+  log.info('[affect]', `${kind} irritation level ${state.annoyed}: `
     + `v ${r2(before.v)}→${r2(state.v)} a ${r2(before.a)}→${r2(state.a)}`);
   return snapshot();
 }
@@ -168,6 +173,17 @@ function noteRepeat(n) {
 function noteFlood(n) {
   if (!Number.isFinite(n) || n < 3) return snapshot();
   return noteSpam('flood', n < 5 ? 1 : 2); // crowded → flustered; 5+ → exasperated
+}
+
+// Shaking is physical provocation, not chat spam — but it feeds the same
+// irritation pool, so the grudge from rattling *persists across turns*
+// (cooling one level per quiet turn like every other annoyance) instead of
+// evaporating with the angry reply. Each burst bumps the level by how
+// violent the burst was; heavier bursts climb faster.
+function noteShake(count) {
+  const n = Math.max(1, Math.min(24, Number(count) || 1));
+  const bump = n > 9 ? 3 : n > 3 ? 2 : 1;
+  return raiseIrritation('shaken', Math.min(3, state.annoyed + bump));
 }
 
 // Full style note for the system prompt: spam irritation (either flavor)
@@ -185,7 +201,13 @@ function styleNote() {
       1: 'Right now, in character: the user rapid-fired several messages without letting you answer. Kanna gets flustered and a bit overwhelmed (mood "strained") — she half-jokes about them sending everything at once ("one at a time!" energy).',
       2: 'Right now, in character: the user keeps firing message after message with no pause — Kanna is genuinely overwhelmed and a bit exasperated (mood "strained" or "angry", speed up). She tells them to stop flooding her and let her breathe.',
     };
-    const lines = state.spamKind === 'flood' ? floodLines : repeatLines;
+    const shakenLines = {
+      1: 'Right now, in character: the user grabbed Kanna\'s window and rattled her around — and she hasn\'t forgotten it. She is wobbly and cross (mood "dizzy" or "strained"); a grudge simmering under the surface.',
+      2: 'Right now, in character: the user has been shaking Kanna around again — and she is FED UP. Stay properly irritated (mood "angry" or "strained") — squeam or snapping back, but playful jokes land badly.',
+      3: 'Right now, in character: the user has been treating her like a rattle toy and she is at the ENOUGH of it: not playful at all (mood "angry", speed high) — she snaps first and asks questions later. No pouting-cute routine.',
+    };
+    const linesByKind = { repeat: repeatLines, flood: floodLines, shaken: shakenLines };
+    const lines = linesByKind[state.spamKind] || repeatLines;
     const l = lines[Math.min(state.annoyed, Object.keys(lines).length)];
     if (l) notes.push(l);
   }
@@ -202,7 +224,10 @@ function moodCarry() {
   if (state.held) bits.push(`${state.family} (held from before)`);
   else if (state.family !== 'neutral') bits.push(`${state.family} left over from the last turn`);
   if (state.annoyed > 0) {
-    bits.push(`irritated ${state.spamKind === 'flood' ? 'by message flooding' : 'by the repeated message'} (level ${state.annoyed}/3)`);
+    const why = state.spamKind === 'flood' ? 'by message flooding'
+      : state.spamKind === 'shaken' ? 'from being shaken around earlier'
+      : 'by the repeated message';
+    bits.push(`irritated ${why} (level ${state.annoyed}/3)`);
   }
   if (!bits.length) return 'calm and neutral';
   return bits.join('; ');
@@ -440,6 +465,7 @@ module.exports = {
   noteRepeat,
   noteFlood,
   noteUserTone,
+  noteShake,
   styleNote,
   moodCarry,
   onInterrupt,
