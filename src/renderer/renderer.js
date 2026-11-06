@@ -74,6 +74,10 @@
   // for models that ignore the JSON reply protocol.
   let liveMood = 'neutral';
   let liveSpeed = 1;
+  // Phase 3 protocol: model-reported emotional strength. 0..1; 0.5 = calm
+  // mid band until the model's "intensity" key (or the affect fallback) says
+  // otherwise. Drives the face scale, not the words.
+  let liveIntensity = 0.5;
   let liveHold = null;       // model said whether this mood should stick
   let holdFace = false;      // true while a held mood is on her face
 
@@ -106,6 +110,15 @@
     if (sprite.getAttribute('src') !== src) sprite.src = src;
     sprite.classList.toggle('speaking', !!speaking);
     armSleep();
+  }
+
+  // Phase 3: model's intensity scales the face itself (3 bands), so a
+  // whisper of surprise and an overwhelming surge read differently even
+  // with the same emote set. Bands stay until the next turn resets them.
+  function setFaceIntensity() {
+    const band = liveIntensity < 0.34 ? 'i-low' : liveIntensity < 0.71 ? 'i-mid' : 'i-high';
+    sprite.classList.remove('i-low', 'i-mid', 'i-high');
+    if (liveIntensity !== 0.5) sprite.classList.add(band);
   }
 
   // Left alone long enough (and nothing held/underway), she dozes off on
@@ -269,6 +282,8 @@ async function runShakeAI(shakes) {
     liveMood = 'neutral';
     liveSpeed = 1;
     liveHold = null;
+    liveIntensity = 0.5;
+    setFaceIntensity();
 
     busy = true;
     phase = 'thinking';
@@ -766,6 +781,8 @@ async function runShakeAI(shakes) {
     liveMood = 'neutral';
     liveSpeed = 1;
     liveHold = null;
+    liveIntensity = 0.5;
+    setFaceIntensity();
     sendBtn.innerHTML = STOP_ICON;
     sendBtn.classList.add('stop');
     sendBtn.title = 'Stop';
@@ -855,6 +872,15 @@ async function runShakeAI(shakes) {
       if (Number.isFinite(v) && v > 0) liveSpeed = Math.min(2.2, Math.max(0.6, v));
     }
     if (meta.hold !== undefined) liveHold = !!meta.hold;
+    // Phase 3 protocol: optional "intensity" 0..1 from the model. Unknown
+    // to older replies / plain-text fallbacks — they just leave the mid band.
+    if (meta.intensity !== undefined) {
+      const n = Number(meta.intensity);
+      if (Number.isFinite(n) && n >= 0 && n <= 1) {
+        liveIntensity = n;
+        setFaceIntensity();
+      }
+    }
   });
 
   function pace(ts) {

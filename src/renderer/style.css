@@ -175,8 +175,14 @@ header {
 }
 
 .sprite.speaking {
-  
+
 }
+
+/* Phase 3 protocol: model-reported emotional intensity scales the face.
+   Three bands, applied on top of the centered base transform. */
+.sprite.i-low  { transform: translateX(-50%) scale(0.96); }
+.sprite.i-mid  { transform: translateX(-50%) scale(0.99); }
+.sprite.i-high { transform: translateX(-50%) scale(1.04); }
 
 @keyframes float {
   from { transform: translateX(-50%) translateY(0); }

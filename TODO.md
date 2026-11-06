@@ -89,6 +89,19 @@ Backlog of things not built yet. Pick from the top when starting something new.
 
 ## Completed recently (v0.1.3)
 
+- [x] **Phase 3 — `intensity` protocol addon** — per the mood-system plan:
+  the model may add an optional `"intensity": 0-1` key to its JSON reply
+  (0.2 subtle → 1 overwhelming). `ai.js` parses it mid-stream and emits it
+  on `chat:meta` (`intensity?`); `affect.js` stores it as
+  `modelIntensity` and the snapshot prefers it over the computed one.
+  The renderer now consumes it (previously dropped): `liveIntensity`
+  drives three face-scale bands (`i-low` 0.96 / `i-mid` 0.99 /
+  `i-high` 1.04 sprite classes), reset to the mid 0.5 band each turn.
+  Fallback behavior (documented in AGENTS.md): replies without the key —
+  or plain-text fallbacks — leave the face in the mid band and let the
+  affect engine's valence/arousal-based snapshot intensity stand in;
+  nothing required, nothing breaks.
+
 - [x] **Shake → freeze → AI reaction flow** — a finished shake burst now
   freezes the window in place (each `move` event is undone immediately,
   which also breaks the user's drag), toasts

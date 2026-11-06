@@ -32,7 +32,7 @@ Current state (Nov 2026): chat, settings, memory, tray/hotkey, turn-box UI, TTS,
 - Window position restored only when it fits a connected display.
 - Turn-box: current reply large, previous half small, tap to compose/interrupt, Escape closes, History drawer.
 - Memory: durable facts, never secrets; view/clear in Settings -> Memory.
-- Mood/speed/hold controlled by model via JSON reply protocol; graceful fallback to raw text.
+- Mood/speed/hold controlled by model via JSON reply protocol; graceful fallback to raw text. Optional `intensity` 0–1 key (Phase 3 of the mood-system plan) scales the face — face-size bands `i-low`/`i-mid`/`i-high` in renderer; when the model omits it (or streams plain text), the affect engine's computed snapshot intensity stands in (valence/arousal-based), renderer stays in the mid band.
 - TTS: built-in or cloud/engine voices, free-text voice ID, rate/pitch sliders, mute toggle, speech-paced typing.
 - Provider keys/models remembered separately.
 
