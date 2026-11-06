@@ -382,6 +382,13 @@ app.whenReady().then(async () => {
   ipcMain.handle('memory:remove', (_e, key) => ({ entries: memory.removeEntry(String(key || '')) }));
   ipcMain.handle('memory:clear', () => ({ entries: memory.clearAll() }));
 
+  // Phase 5: mood debug panel (Settings -> Mood). Read-only snapshot plus a
+  // mood reset and a separate relationship reset (the affinity survives a
+  // normal mood reset on purpose).
+  ipcMain.handle('affect:get', () => affect.snapshot());
+  ipcMain.handle('affect:reset', () => affect.reset());
+  ipcMain.handle('affect:resetAffinity', () => affect.resetAffinity());
+
   // Welcome-back: the renderer pings main when the user becomes active
   // again after ≥5 min away. Main picks a tier-matched canned line (no
   // model call) and lets the affect engine feel it too, so the next
@@ -476,6 +483,7 @@ app.whenReady().then(async () => {
 app.on('before-quit', () => {
   isQuitting = true;
   ai.abortActive();
+  try { affect.flush(); } catch { /* affinity save best-effort */ }
   try { tts.stopPiperServer(); } catch { /* ignore */ }
   try { stt.stopSttServer(); } catch { /* ignore */ }
 });

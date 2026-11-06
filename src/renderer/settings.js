@@ -131,7 +131,9 @@
   for (const t of tabs) {
     t.addEventListener('click', () => {
       showTab(t.dataset.tab);
+      stopMoodPoll();
       if (t.dataset.tab === 'memory') loadMemory(); // fresh facts even while open
+      if (t.dataset.tab === 'mood') loadMood();     // live snapshot + poll while open
     });
   }
 
@@ -189,6 +191,60 @@
     await window.kanna.clearMemory();
     await loadMemory();
     window.dispatchEvent(new CustomEvent('kanna:toast', { detail: 'Memory cleared' }));
+  });
+
+  // --- mood panel (Phase 5: affinity + live debug view) -----------------------
+
+  let moodTimer = null;
+
+  function stopMoodPoll() {
+    clearInterval(moodTimer);
+    moodTimer = null;
+  }
+
+  async function loadMood() {
+    let s = null;
+    try { s = await window.kanna.getMood(); } catch (err) { console.error('[mood panel]', err); return; }
+    if (!s) return;
+
+    document.getElementById('mood-family').textContent = s.family || 'neutral';
+    document.getElementById('mood-hold').textContent =
+      (s.held ? 'held' : '') + (s.intensity != null ? ` · intensity ${s.intensity}` : '');
+
+    const aff = Math.round(Number(s.affinity) || 0);
+    const bar = document.getElementById('mood-aff-bar');
+    bar.style.width = `${aff}%`;
+    document.getElementById('mood-aff-num').textContent = aff;
+
+    document.getElementById('mood-dims').textContent =
+      `valence ${s.valence} · arousal ${s.arousal} · social ${s.socialEnergy}`;
+
+    const extras = [];
+    if (s.describe && s.describe.includes('annoyed=')) extras.push('grudge up');
+    if (s.tone?.kind) extras.push(`tone ${s.tone.kind}×${s.tone.level}`);
+    if (s.affinity >= 60) extras.push('warmly attached');
+    else if (s.affinity <= 15) extras.push('growing distant');
+    document.getElementById('mood-extras').textContent = extras.join(' · ');
+  }
+
+  document.getElementById('btn-mood-reset').addEventListener('click', async () => {
+    await window.kanna.resetMood();
+    await loadMood();
+    window.dispatchEvent(new CustomEvent('kanna:toast', { detail: 'Mood reset — affinity kept' }));
+  });
+
+  document.getElementById('btn-affinity-reset').addEventListener('click', async () => {
+    if (!confirm('Reset the relationship score back to neutral (30)?')) return;
+    await window.kanna.resetAffinity();
+    await loadMood();
+    window.dispatchEvent(new CustomEvent('kanna:toast', { detail: 'Affinity reset' }));
+  });
+
+  // Poll while the Mood tab is visible so the numbers breathe.
+  const moodTab = document.querySelector('.tab[data-tab="mood"]');
+  moodTab.addEventListener('click', () => {
+    stopMoodPoll();
+    moodTimer = setInterval(loadMood, 1500);
   });
 
   function render() {

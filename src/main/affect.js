@@ -10,6 +10,15 @@
 // to the log file so the decay curves can be tuned from real sessions.
 
 const log = require('./log');
+const fs = require('node:fs');
+const path = require('node:path');
+
+// Phase 5 — long-term affinity. A 0–100 relationship score the engine keeps
+// durably (affect.json next to the other stores): warm/praising/apology
+// turns turn it up, meanness and grudge-turns turn it down, absence decays
+// it slowly. It does not grab the mood by itself — it nudges the resting
+// baseline valence (a warm partner wakes up a little easier) and shows in
+// the Settings -> Mood debug panel.
 
 // Dimension targets per emote family: valence (-1 negative → +1 positive),
 // arousal (0..1), socialEnergy (0..1). `neutral` doubles as the resting
@@ -80,11 +89,58 @@ const state = {
   spamKind: null, // 'repeat' | 'flood' — which flavor holds the irritation
   tone: { kind: null, level: 0 }, // last emotional tone read from the user
   warm: 0,     // 0 none … 3 melted — cumulative sweetness reservoir
+  affinity: 30, // 0..100 long-term relationship score (persisted)
+  affinityDirty: false,
   modelIntensity: null, // optional "intensity" 0..1 the model itself reports
 };
 
+// --- Phase 5: affinity persistence -------------------------------------------
+// affect.json beside the other stores: just the long-term score. Load once
+// at module init, save debounced whenever the value changed, plus a hard
+// flush on reset.
+let affinityFile = null;
+function affinityPath() {
+  if (!affinityFile) {
+    const app = require('electron').app; // main process only
+    affinityFile = path.join(app.getPath('userData'), 'affect.json');
+  }
+  return affinityFile;
+}
+
+let saveTimer = null;
+function saveAffinitySoon() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      fs.mkdirSync(path.dirname(affinityPath()), { recursive: true });
+      fs.writeFileSync(affinityPath(), JSON.stringify({
+        affinity: Math.round(state.affinity * 10) / 10,
+        savedAt: new Date().toISOString(),
+      }, null, 2), 'utf8');
+    } catch (err) {
+      log.info('[affect]', `affinity save failed: ${err?.message || err}`);
+    }
+  }, 1500);
+}
+
+function loadAffinity() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(affinityPath(), 'utf8'));
+    const v = Number(raw?.affinity);
+    if (Number.isFinite(v)) {
+      state.affinity = Math.round(Math.min(100, Math.max(0, v)) * 10) / 10;
+    }
+  } catch {
+    // fresh store — keep the 30 default
+  }
+}
+// Load once at module init; a headless test run (no Electron app) simply
+// keeps the default.
+try { loadAffinity(); } catch { /* fresh store or headless — default stands */ }
+
 const r1 = (x) => Math.round(x * 10) / 10;
 const r2 = (x) => Math.round(x * 100) / 100;
+const clampAff = (x) => Math.min(100, Math.max(0, x));
 
 // Family for a raw mood string from the model.
 function familyFor(rawMood) {
@@ -113,8 +169,12 @@ function tick(now = Date.now()) {
     baseline + (value - baseline) * Math.pow(0.5, elapsedMs / halfLifeMs);
 
   const baseline = MOOD_DIMS.neutral;
+  // Long-term warmth lifts the resting baseline a touch: a close partner
+  // wakes up sunnier, and nobody's mood can be pushed below ~10% negative
+  // by lingering decay when she genuinely likes you.
+  const vRest = baseline.v + (state.affinity - 30) / 70 * 0.10;
   const vHalf = state.held ? 240_000 : 120_000; // held feelings linger ~2–4 min
-  state.v = clampJ(decay(state.v, baseline.v, vHalf));
+  state.v = clampJ(decay(state.v, vRest, vHalf));
   state.a = clamp01(decay(state.a, baseline.a, 60_000));
   state.s = clamp01(decay(state.s, baseline.s, 150_000));
   return snapshot();
@@ -162,6 +222,9 @@ function raiseIrritation(kind, level) {
   state.v = clampJ(state.v - 0.12 * bump);
   state.a = clamp01(state.a + 0.08 * bump);
   state.lastAt = Date.now();
+  // A steady streak of annoying behavior chips at long-term warmth too.
+  state.affinity = clampAff(state.affinity - 1);
+  saveAffinitySoon();
   log.info('[affect]', `${kind} irritation level ${state.annoyed}: `
     + `v ${r2(before.v)}→${r2(state.v)} a ${r2(before.a)}→${r2(state.a)}`);
   return snapshot();
@@ -315,6 +378,17 @@ function noteUserTone(text, source = 'user') {
     if (state.annoyed === 0) state.spamKind = null;
   }
 
+  // Phase 5: relationship scoring — small per-turn drifts, persisted.
+  const affBefore = state.affinity;
+  if (kind === 'apology') state.affinity = clampAff(state.affinity + 1);
+  else if (kind === 'unkind') state.affinity = clampAff(state.affinity - 2);
+  else if (kind === 'affectionate' || kind === 'praise') state.affinity = clampAff(state.affinity + 1);
+  else if (kind === 'tease') state.affinity = clampAff(state.affinity + (fedUp ? -1 : 0.5));
+  if (state.affinity !== affBefore) {
+    saveAffinitySoon();
+    forgive += `${forgive ? ', ' : ' ('}affinity ${r1(affBefore)}→${r1(state.affinity)})`;
+  }
+
   log.info('[affect]', `${source} tone ${kind} x${count}${kind === 'tease' && fedUp ? ' (she stays angry — joke does not land)' : ''}${forgive}: `
     + `v ${r2(before.v)}→${r2(state.v)} a ${r2(before.a)}→${r2(state.a)}`);
   return snapshot();
@@ -450,7 +524,7 @@ function describe() {
   const tone = state.tone.kind ? ` tone=${state.tone.kind}x${state.tone.level}` : '';
   return `${state.family}${state.held ? ' (held)' : ''}${state.annoyed ? ` annoyed=${state.annoyed}` : ''}${tone} `
     + `v=${r2(state.v)} a=${r2(state.a)} s=${r2(state.s)}`
-    + ` intensity=${r2(intensity)}`;
+    + ` intensity=${r2(intensity)} affinity=${r1(state.affinity)}`;
 }
 
 function snapshot() {
@@ -464,6 +538,7 @@ function snapshot() {
     intensity: state.modelIntensity != null
       ? state.modelIntensity
       : r2(clamp01(Math.abs(state.v) * 0.5 + Math.max(0, state.a) * 0.5)),
+    affinity: Math.round(state.affinity * 10) / 10,
     targets: dims,
     ageMs: Date.now() - state.lastAt,
     turnsSinceHeld: state.turnsSinceHeld,
@@ -472,13 +547,15 @@ function snapshot() {
   };
 }
 
-// Debug/mood-reset hook (Settings panel comes later).
+// Debug/mood-reset hook (Settings -> Mood panel). Clears session mood —
+// long-term affinity deliberately survives: a mood reset is not a breakup.
 function reset() {
   state.family = 'neutral';
   state.held = false;
   state.turnsSinceHeld = 0;
   state.annoyed = 0;
   state.spamKind = null;
+  state.warm = 0;
   state.tone = { kind: null, level: 0 };
   state.modelIntensity = null;
   const b = MOOD_DIMS.neutral;
@@ -486,9 +563,33 @@ function reset() {
   state.a = b.a;
   state.s = b.s;
   state.lastAt = Date.now();
-  log.info('[affect]', 'reset to baseline');
+  log.info('[affect]', `reset to baseline (affinity kept at ${r1(state.affinity)})`);
   return snapshot();
 }
+
+// Settings gets a separate "reset the relationship" control: puts affinity
+// back to the neutral 30 (a mood reset is not a breakup; this one is).
+function resetAffinity() {
+  state.affinity = 30;
+  clearTimeout(saveTimer);
+  saveAffinityNow();
+  log.info('[affect]', 'affinity reset to 30');
+  return snapshot();
+}
+
+// Immediate write, for flush-at-quit and explicit resets.
+function saveAffinityNow() {
+  try {
+    fs.mkdirSync(path.dirname(affinityPath()), { recursive: true });
+    fs.writeFileSync(affinityPath(), JSON.stringify({
+      affinity: Math.round(state.affinity * 10) / 10,
+      savedAt: new Date().toISOString(),
+    }, null, 2), 'utf8');
+  } catch (err) {
+    log.info('[affect]', `affinity save failed: ${err?.message || err}`);
+  }
+}
+const flush = saveAffinityNow;
 
 module.exports = {
   MOOD_DIMS,
@@ -507,4 +608,6 @@ module.exports = {
   describe,
   snapshot,
   reset,
+  resetAffinity,
+  flush,
 };

@@ -9,6 +9,10 @@ contextBridge.exposeInMainWorld('kanna', {
   getMemory: () => ipcRenderer.invoke('memory:get'),
   removeMemory: (key) => ipcRenderer.invoke('memory:remove', key),
   clearMemory: () => ipcRenderer.invoke('memory:clear'),
+  // Mood debug panel (Settings -> Mood): live snapshot + reset buttons.
+  getMood: () => ipcRenderer.invoke('affect:get'),
+  resetMood: () => ipcRenderer.invoke('affect:reset'),
+  resetAffinity: () => ipcRenderer.invoke('affect:resetAffinity'),
   sendChat: (messages) => ipcRenderer.invoke('chat:send', messages),
   stopChat: () => ipcRenderer.send('chat:stop'),
 

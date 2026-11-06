@@ -577,6 +577,62 @@ header {
   margin-bottom: 8px;
 }
 
+/* --- mood panel (Phase 5: live affect + affinity debug) ------------------------ */
+
+.mood-card .mood-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.mood-family {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.mood-aff {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.mood-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.mood-bar > div {
+  height: 100%;
+  width: 30%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--accent-deep), var(--accent));
+  transition: width 0.4s ease;
+}
+
+.mood-aff-num {
+  min-width: 3ch;
+  text-align: right;
+}
+
+.mood-dims,
+.mood-extras {
+  font-size: 12px;
+  opacity: 0.85;
+  margin-bottom: 6px;
+}
+
+.mood-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .memory-row {
   display: flex;
   align-items: center;

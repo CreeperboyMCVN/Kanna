@@ -89,6 +89,19 @@ Backlog of things not built yet. Pick from the top when starting something new.
 
 ## Completed recently (v0.1.3)
 
+- [x] **Phase 5 — long-term affinity + mood debug panel** — per the plan's
+  "memory + soul" section: `affect.affinity` (0–100, starts 30) persisted in
+  `%APPDATA%\Kanna\affect.json` (debounced writes, flush on quit, load
+  fallback to defaults). Scoring from real turns: sweet/praise/apology
+  turns +1, grudge bumps (spam/shaken) −1, unkind −2, tease +0.5 unless
+  she's fed up. Effect so far is deliberately small: the resting valence
+  baseline tilts up to +0.10 (down to −0.04) with the score, so a warm
+  relationship wakes up sunnier but never hijacks the model's own moods.
+  Settings got a **Mood tab** (Phase 5 "report UI"): live snapshot
+  (family, hold, intensity, valence/arousal/social, grudge/tone markers),
+  affinity bar, "Reset mood" (keeps affinity) and "Reset affinity"
+  (back to 30), auto-refreshing every 1.5 s while open.
+
 - [x] **Phase 3 — `intensity` protocol addon** — per the mood-system plan:
   the model may add an optional `"intensity": 0-1` key to its JSON reply
   (0.2 subtle → 1 overwhelming). `ai.js` parses it mid-stream and emits it

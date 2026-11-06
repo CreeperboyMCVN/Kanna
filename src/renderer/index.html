@@ -21,6 +21,7 @@
         <button type="button" class="tab active" data-tab="brain" role="tab"><i class="fa-solid fa-brain"></i> Brain</button>
         <button type="button" class="tab" data-tab="personality" role="tab"><i class="fa-solid fa-masks-theater"></i> Personality</button>
         <button type="button" class="tab" data-tab="memory" role="tab"><i class="fa-solid fa-box-archive"></i> Memory</button>
+        <button type="button" class="tab" data-tab="mood" role="tab"><i class="fa-solid fa-face-smile"></i> Mood</button>
         <button type="button" class="tab" data-tab="voice" role="tab"><i class="fa-solid fa-volume-high"></i> Voice</button>
       </nav>
 
@@ -75,6 +76,27 @@
           <div id="memory-list" class="memory-list"></div>
           <button type="button" id="btn-forget" class="ghost-btn">Forget everything</button>
           <p class="hint">Durable facts Kanna keeps on her own (never secrets like passwords or keys). Saved instantly — the Save button is only for Brain/Personality settings.</p>
+        </div>
+      </div>
+
+      <div class="tab-panel" data-panel="mood">
+        <div class="field mood-card">
+          <div class="mood-head">
+            <span id="mood-family" class="mood-family">neutral</span>
+            <span id="mood-hold" class="mood-extras"></span>
+          </div>
+          <div class="mood-aff">
+            <span>Affinity</span>
+            <div class="mood-bar"><div id="mood-aff-bar"></div></div>
+            <span id="mood-aff-num" class="mood-aff-num">30</span>
+          </div>
+          <div id="mood-dims" class="mood-dims"></div>
+          <div id="mood-extras" class="mood-extras"></div>
+          <div class="mood-actions">
+            <button type="button" id="btn-mood-reset" class="ghost-btn">Reset mood</button>
+            <button type="button" id="btn-affinity-reset" class="ghost-btn">Reset affinity</button>
+          </div>
+          <p class="hint">Live view of her affect engine: current face, dimensions, long-term affinity (0–100, saved to affect.json). "Reset mood" clears only the session mood; "Reset affinity" puts the relationship score back to 30.</p>
         </div>
       </div>
 
